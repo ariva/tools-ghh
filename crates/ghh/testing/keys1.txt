@@ -1,0 +1,60 @@
+# keys1.txt — basic navigation smoke test
+# Run with: just run --auto crates/ghh/testing/keys1.txt --auto-delay 300
+
+# move down through a few commits
+KEY_PRESS ARROW_DOWN
+KEY_PRESS ARROW_DOWN
+KEY_PRESS ARROW_DOWN
+
+SLEEP 500
+
+# slow down for a visible section
+KEY_PRESS_DELAY 800
+KEY_PRESS ARROW_UP
+KEY_PRESS ARROW_UP
+
+SLEEP 500
+
+# speed back up
+KEY_PRESS_DELAY 150
+
+SLEEP 500
+
+# jump to bottom then back to top
+KEY_PRESS LOWER_G
+KEY_PRESS UPPER_G
+
+SLEEP 500
+
+# collapse/expand a merge commit
+KEY_PRESS SPACE
+
+SLEEP 300
+
+KEY_PRESS SPACE
+
+SLEEP 500
+
+# open edit popup on selected commit
+KEY_PRESS ENTER
+
+SLEEP 500
+
+# tab through fields
+KEY_PRESS TAB
+KEY_PRESS TAB
+
+SLEEP 500
+
+# cancel back to normal mode
+KEY_PRESS ESC
+
+SLEEP 300
+
+# open staging view
+KEY_PRESS LOWER_S
+
+SLEEP 500
+
+# quit staging (q)
+KEY_PRESS LOWER_Q

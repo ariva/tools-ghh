@@ -1,0 +1,10 @@
+pub mod commit_list;
+pub mod context_menu;
+pub mod edit;
+pub mod help;
+pub mod history_load;
+pub mod move_commit;
+pub mod search;
+pub mod squash;
+pub mod staging;
+pub mod stash;

@@ -1,0 +1,33 @@
+[package]
+name = "tool-ghh"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ghh (git handy helper): a terminal UI for browsing and rewriting Git history"
+readme = "../../README.md"
+keywords = ["git", "tui", "history", "rebase"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "ghh"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+arboard = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+crossterm = { workspace = true }
+git2 = { workspace = true }
+json5 = { workspace = true }
+libc = { workspace = true }
+libgit2-sys = { workspace = true }
+ratatui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+signal-hook = { workspace = true }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true }

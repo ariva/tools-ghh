@@ -612,6 +612,65 @@ mod tests {
         );
     }
 
+    /// M pressed again inside the view it opened: same merge, so no second
+    /// level is stacked; the commit stays selected.
+    #[test]
+    fn drill_into_containing_merge_twice_does_not_stack() {
+        let mut app = test_app_with(nested_merge_chain(), "drill-merge-twice");
+        app.select_commit_idx(5);
+        app.drill_into_merge_of_selected();
+        assert_eq!(app.drill_stack.len(), 1);
+
+        app.drill_into_merge_of_selected();
+        app.drill_into_merge_of_selected();
+        assert_eq!(
+            app.drill_stack.len(),
+            1,
+            "same merge must not be drilled again"
+        );
+        assert_eq!(app.selected_commit_index(), Some(5));
+
+        // One Backspace is enough to be out.
+        app.drill_back();
+        assert!(app.drill_stack.is_empty());
+    }
+
+    /// M from a deeper level whose containing merge is an OUTER level
+    /// already on the stack: return to that level, do not nest it again.
+    #[test]
+    fn drill_into_containing_merge_returns_to_open_outer_level() {
+        use crate::app::models::VisibleRow;
+        let mut app = test_app_with(nested_merge_chain(), "drill-merge-outer");
+        app.select_commit_idx(1);
+        app.drill_into_selected(); // level 1: mainline merge 1
+        let sub_row = app
+            .visible
+            .iter()
+            .position(|row| matches!(row, VisibleRow::Commit { idx: 2, .. }))
+            .expect("sub-merge visible in drill view");
+        app.list_state.select(Some(sub_row));
+        app.drill_into_selected(); // level 2: sub-merge 2
+        assert_eq!(app.drill_stack.len(), 2);
+        let inner_row = app
+            .visible
+            .iter()
+            .position(|row| matches!(row, VisibleRow::Commit { idx: 5, .. }))
+            .expect("commit 5 in sub-merge scope");
+        app.list_state.select(Some(inner_row));
+
+        app.drill_into_merge_of_selected();
+        assert_eq!(
+            app.drill_stack.len(),
+            1,
+            "back at the open level of merge 1"
+        );
+        assert_eq!(
+            app.drill_stack.last().map(|f| f.merge_hash.as_str()),
+            Some("hash1")
+        );
+        assert_eq!(app.selected_commit_index(), Some(5));
+    }
+
     /// m in the flat view: selection lands on the merge row.
     #[test]
     fn merge_jump_selects_merge_in_flat_view() {

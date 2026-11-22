@@ -825,6 +825,27 @@ impl App {
             return;
         };
         let merge_hash = self.commits[merge_idx].hash.clone();
+        // That merge is already open, at this level or an outer one: go to
+        // it instead of stacking a second copy of the same screen.
+        if let Some(depth) = self
+            .drill_stack
+            .iter()
+            .position(|frame| frame.merge_hash == merge_hash)
+        {
+            let was_current = depth + 1 == self.drill_stack.len();
+            self.drill_back_to(depth + 1);
+            if let Some(row) = self.visible_row_of(commit_idx) {
+                self.list_state.select(Some(row));
+            }
+            self.schedule_selected_stats_load();
+            let short = &merge_hash[..merge_hash.len().min(8)];
+            self.status_message = Some(if was_current {
+                format!("Already showing the merge of this commit ({short}). Backspace: back.")
+            } else {
+                format!("Back at the merge of this commit ({short}). Backspace: back.")
+            });
+            return;
+        }
         let count = self.drill_scope_depths(&merge_hash).len();
         if count == 0 {
             self.status_message = Some("No branch commits under the containing merge.".into());

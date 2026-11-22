@@ -202,7 +202,7 @@ pub fn status_line_content(app: &App) -> Line<'static> {
             ));
         }
         spans.push(Span::styled(
-            "  n/p: next/prev match  f: toggle filter  F: clear search",
+            "  n/N: next/prev match  f: toggle filter  F: clear search",
             Style::default().fg(Color::DarkGray),
         ));
     }

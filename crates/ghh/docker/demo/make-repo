@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the repository the demo shows: `make-repo <dir>`. A small fake
 # "shop-api" with three merged pull requests, two tags, three plain
-# commits on top (the ones `m` can move) and two stashes. Every name, date and line of code in it is made up; dates are
+# commits on top (the ones `E` can move) and two stashes. Every name, date and line of code in it is made up; dates are
 # fixed so two recordings show the same list.
 set -euo pipefail
 
@@ -185,7 +185,7 @@ commit "Maya Okafor" "Checkout: test the empty cart"
 merge_pr 18 feature/checkout "Checkout"
 git tag v1.1.0
 
-# --- plain commits on top: the ones `m` can move ---------------------------
+# --- plain commits on top: the ones `E` can move ---------------------------
 cat >> shop/routes.py <<'EOF'
 
 

@@ -38,41 +38,57 @@ impl App {
     pub fn help_lines(&self) -> Vec<String> {
         match self.mode() {
             Mode::Normal => {
-                let mut lines = vec![
-                    "j/k, ↑/↓  navigate commits".into(),
-                    "PgUp/PgDn  jump by page".into(),
-                    "e / E       edit selected commit".into(),
-                    "/          search commits".into(),
-                    "n / p      next / previous search match (Shift reverses)".into(),
-                    "f          filter list to search matches (again: remove)".into(),
-                    "F          clear search (matches + filter)".into(),
-                    "s          open staging".into(),
-                    "S          browse stashes (view / apply / pop / drop)".into(),
-                    "r          open squash picker".into(),
-                    "v          toggle diff pane".into(),
-                    ".          open pane context menu".into(),
-                    "c / C      cycle focused (gitk) / graph / simple view (C reverse)".into(),
-                    "Enter      drill into merge/collapsed branch commits".into(),
-                    "M, S-Enter drill into containing merge (PR), commit stays selected".into(),
-                    "Backspace  back to outer commit list".into(),
-                    "o          commit order: topological / strictly by date".into(),
-                    "Space, ←→  collapse/expand merge branch".into(),
+                // Lines starting with `─` are section dividers; the popup
+                // draws them in the border colour (ui/popups/help.rs).
+                let mut lines: Vec<String> = vec![
+                    "── Move around ──".into(),
+                    "j/k, ↑/↓   navigate commits".into(),
+                    "PgUp/PgDn  jump by page (also P / p)".into(),
                     "g / G      jump top / bottom".into(),
                     "C-M-d/u    jump halfway toward bottom / top".into(),
                     "{ / }      previous / next branch- or tag-labeled commit".into(),
                     "[ / ]      first parent / nearest child".into(),
-                    "t          jump to the merge (PR) that brought commit to mainline".into(),
-                    "m          move commit up/down (rewrites history)".into(),
+                    "── Merges and branches ──".into(),
+                    "m          jump to the merge (PR) that brought commit to mainline".into(),
+                    "b          back to the commit m jumped from".into(),
+                    "M, S-Enter drill into containing merge (PR), commit stays selected".into(),
+                    "Enter      drill into merge/collapsed branch commits".into(),
+                    "Backspace  back to outer commit list".into(),
+                    "Space, ←→  collapse/expand merge branch".into(),
+                    "── Search ──".into(),
+                    "/          search commits".into(),
+                    "n / N      next / previous search match".into(),
+                    "f          filter list to search matches (again: remove)".into(),
+                    "F          clear search (matches + filter)".into(),
+                    "── View ──".into(),
+                    "v          toggle diff pane".into(),
                 ];
                 if self.show_commit_diff {
                     lines.push("Tab        switch focus list/diff".into());
-                    lines.push("PgUp/PgDn  page list or scroll diff".into());
+                    lines.push("PgUp/PgDn  page list or scroll diff (also P / p)".into());
                     lines.push("Esc        hide diff".into());
                 }
-                lines.push("h / ?      open help".into());
-                lines.push("Ctrl+L     repaint screen (fix rendering artifacts)".into());
-                lines.push("mouse      drag pane borders to resize (saved on quit)".into());
-                lines.push("q          quit".into());
+                lines.extend(
+                    [
+                        "l / L      cycle focused (gitk) / graph / simple view (L reverse)",
+                        "o          commit order: topological / strictly by date",
+                        ".          open pane context menu",
+                        "── Commit, rewrite, stash ──",
+                        "e          edit selected commit",
+                        "E          move commit up/down (rewrites history)",
+                        "           only commits above the newest merge; clean working tree;",
+                        "           not in a drill view or filtered list",
+                        "r          open squash picker",
+                        "s          open staging",
+                        "S          browse stashes (view / apply / pop / drop)",
+                        "── Other ──",
+                        "h / ?      open help",
+                        "Ctrl+L     repaint screen (fix rendering artifacts)",
+                        "mouse      drag pane borders to resize (saved on quit)",
+                        "q          quit",
+                    ]
+                    .map(String::from),
+                );
                 lines
             }
             Mode::Staging => vec![
@@ -152,7 +168,7 @@ impl App {
                 "Enter      apply: asks to confirm, then rewrites history".into(),
                 "Esc        cancel, nothing changed".into(),
                 "Conflict   rebase stays in progress: fix + stage files,".into(),
-                "           then m to continue or abort".into(),
+                "           then E to continue or abort".into(),
                 "h / ?      open help".into(),
                 "q          quit".into(),
             ],

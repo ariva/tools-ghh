@@ -1325,11 +1325,11 @@ impl App {
             .collect()
     }
 
-    /// Hashes of the commits that matching branch/tag refs POINT AT. n/p then
+    /// Hashes of the commits that matching branch/tag refs POINT AT. n/N then
     /// hops ref to ref and `f` filters to the labeled commits — matching what
     /// a person means by "search tags". (The old semantics — every commit
     /// REACHABLE from the ref — made a tag near HEAD match the entire history:
-    /// n/p crawled commit-by-commit and the filter appeared to do nothing.)
+    /// n/N crawled commit-by-commit and the filter appeared to do nothing.)
     fn ref_target_hashes(
         &self,
         values: &[String; 9],
@@ -1911,7 +1911,7 @@ impl App {
                     self.search.cursor = 0;
                     self.search.open_backup = Some(values);
                 } else {
-                    // Reset: clear inputs, drop matches (n/p go dead) and any
+                    // Reset: clear inputs, drop matches (n/N go dead) and any
                     // active filter.
                     self.search.reset_backup = Some(self.search.values.clone());
                     self.search.values = Default::default();

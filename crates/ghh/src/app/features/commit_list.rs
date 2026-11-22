@@ -442,7 +442,8 @@ impl App {
 
     /// Jump to the mainline merge that brought the selected commit in (m).
     /// Works from any view: leaves drill/filter/collapse scopes when the
-    /// merge lives outside them.
+    /// merge lives outside them. Remembers where it came from for
+    /// `jump_back_from_merge_point`.
     pub(crate) fn jump_to_merge_point(&mut self) {
         if self.full_history_required("finding the merge point") {
             return;
@@ -453,11 +454,12 @@ impl App {
         match self.merge_point_of(commit_idx) {
             Some(merge_idx) => match self.reveal_and_select_commit(merge_idx) {
                 Ok(note) => {
+                    self.merge_jump_origin = Some(self.commits[commit_idx].hash.clone());
                     self.schedule_selected_stats_load();
                     let c = &self.commits[merge_idx];
                     let suffix = note.map(|n| format!(" ({n})")).unwrap_or_default();
                     self.status_message = Some(format!(
-                        "Merged via {} {}{suffix}",
+                        "Merged via {} {}{suffix}. b: back",
                         c.short_hash(),
                         c.message
                     ));
@@ -474,6 +476,34 @@ impl App {
             None => {
                 self.status_message =
                     Some("On the mainline — committed directly (no PR merge).".into());
+            }
+        }
+    }
+
+    /// Return to the commit the last `m` jump started from (b). One step
+    /// back, not a history: the origin is forgotten once used. Scopes that
+    /// `m` left (drill, filter) stay left; the commit is selected in the
+    /// view as it is now.
+    pub(crate) fn jump_back_from_merge_point(&mut self) {
+        let Some(hash) = self.merge_jump_origin.take() else {
+            self.status_message = Some("Nothing to return to: m jumps to a merge first.".into());
+            return;
+        };
+        let Some(commit_idx) = self.commit_position(&hash) else {
+            self.status_message = Some("The commit m jumped from is no longer in the list.".into());
+            return;
+        };
+        match self.reveal_and_select_commit(commit_idx) {
+            Ok(note) => {
+                self.schedule_selected_stats_load();
+                let c = &self.commits[commit_idx];
+                let suffix = note.map(|n| format!(" ({n})")).unwrap_or_default();
+                self.status_message =
+                    Some(format!("Back to {} {}{suffix}", c.short_hash(), c.message));
+            }
+            Err(()) => {
+                self.status_message =
+                    Some("The commit m jumped from is not in the current view.".into());
             }
         }
     }

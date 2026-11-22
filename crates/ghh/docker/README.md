@@ -20,12 +20,12 @@ from source in a `rust` stage; `.dockerignore` at the root keeps
 | `Dockerfile` | `rust:1-slim-bookworm` (plus `git`, `libssl-dev`, `pkg-config`) builds `ghh --release` with the toolchain `rust-toolchain.toml` pins; `ghcr.io/charmbracelet/vhs` (ttyd, ffmpeg, headless Chrome) gets the binary, `git`, a `dev` user and this folder as `/opt/demo`; the entrypoint is `vhs /opt/demo/demo.tape` |
 | `demo.tape` | the script VHS plays: terminal size, theme, every key pressed and how long the result stays on screen; `Output demo.gif` is relative to `/out`, the volume `just demo` mounts on `docs/assets` (a second `Output demo.mp4` line is all an MP4 needs) |
 | `enter` | the tape's first, hidden command: runs `make-repo` as `dev`, then becomes a `dev` shell |
-| `make-repo` | builds `~/shop-api`: three merged pull requests, two tags, three plain commits on top (the ones `m` can move), two stashes; names, code and dates are made up, and the dates are fixed |
+| `make-repo` | builds `~/shop-api`: three merged pull requests, two tags, three plain commits on top (the ones `E` can move), two stashes; names, code and dates are made up, and the dates are fixed |
 
 What the tape shows, in order: the diff pane (`v`), the merge that
-brought a commit to main (`t`), drilling into that merge (`Enter`,
+brought a commit to main and the way back (`m`, `b`), drilling into that merge (`Enter`,
 `Backspace`), collapsing it (`Space`), search and filter (`/`, `f`,
-`F`), the stash browser (`S`), and moving a commit (`m`, with its
+`F`), the stash browser (`S`), and moving a commit (`E`, with its
 DANGER confirmation answered `y`).
 
 Nothing on screen is real: the repository is built inside the container

@@ -682,6 +682,104 @@ mod tests {
         assert_eq!(app.list_state.selected(), Some(1), "merge row selected");
     }
 
+    /// p / P page the commit list like PgDn / PgUp, and no longer hop
+    /// search matches (n / N do that).
+    #[test]
+    fn p_and_shift_p_page_the_commit_list() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let press = |app: &mut App, code| {
+            app.handle_normal(KeyEvent::new(code, KeyModifiers::NONE));
+        };
+        let mut by_p = test_app_with(nested_merge_chain(), "page-p");
+        let mut by_page_key = test_app_with(nested_merge_chain(), "page-key");
+        // A search match on the top row: the old `p` (previous match) would
+        // have jumped to it instead of paging.
+        by_p.search.matches = vec![0];
+        by_p.select_commit_idx(0);
+        by_page_key.select_commit_idx(0);
+
+        press(&mut by_p, KeyCode::Char('p'));
+        press(&mut by_page_key, KeyCode::PageDown);
+        assert_ne!(by_p.list_state.selected(), Some(0), "p must move down");
+        assert_eq!(
+            by_p.list_state.selected(),
+            by_page_key.list_state.selected()
+        );
+
+        press(&mut by_p, KeyCode::Char('P'));
+        press(&mut by_page_key, KeyCode::PageUp);
+        assert_eq!(by_p.list_state.selected(), Some(0));
+        assert_eq!(
+            by_p.list_state.selected(),
+            by_page_key.list_state.selected()
+        );
+    }
+
+    /// The three merge keys sit together under their own divider in the
+    /// commit list help, with nothing between them.
+    #[test]
+    fn commit_list_help_groups_merge_keys() {
+        let app = test_app_with(merge_chain(), "help-groups");
+        let lines = app.help_lines();
+        let at = |start: &str| {
+            lines
+                .iter()
+                .position(|line| line.starts_with(start))
+                .unwrap_or_else(|| panic!("{start:?} missing from help"))
+        };
+        let header = at("── Merges and branches");
+        assert_eq!(at("m  "), header + 1);
+        assert_eq!(at("b  "), header + 2);
+        assert_eq!(at("M, S-Enter"), header + 3);
+    }
+
+    /// b after m: back on the commit the jump started from, once.
+    #[test]
+    fn merge_jump_back_returns_to_origin_once() {
+        let mut app = test_app_with(nested_merge_chain(), "mp-back");
+        app.select_commit_idx(5);
+        let origin_row = app.list_state.selected();
+        app.jump_to_merge_point();
+        assert_eq!(app.list_state.selected(), Some(1));
+
+        app.jump_back_from_merge_point();
+        assert_eq!(app.list_state.selected(), origin_row, "back on the origin");
+
+        // The origin is used up: a second b stays put and says why.
+        app.select_commit_idx(4);
+        app.jump_back_from_merge_point();
+        assert_eq!(app.list_state.selected(), Some(4), "selection unchanged");
+        assert!(
+            app.status_message
+                .as_deref()
+                .unwrap_or("")
+                .contains("Nothing to return to")
+        );
+    }
+
+    /// b when m dropped a filter to reach the merge: the origin is selected
+    /// in the unfiltered list.
+    #[test]
+    fn merge_jump_back_works_after_filter_was_dropped() {
+        let mut app = test_app_with(nested_merge_chain(), "mp-back-filter");
+        app.search.matches = vec![5];
+        app.search.filter_active = true;
+        app.rebuild_visible();
+        app.list_state.select(Some(0));
+        app.jump_to_merge_point();
+        app.jump_back_from_merge_point();
+        assert_eq!(app.selected_commit_index(), Some(5));
+    }
+
+    /// m on a mainline commit jumps nowhere, so it must not arm b.
+    #[test]
+    fn merge_jump_on_mainline_does_not_arm_return() {
+        let mut app = test_app_with(nested_merge_chain(), "mp-back-mainline");
+        app.select_commit_idx(4);
+        app.jump_to_merge_point();
+        assert!(app.merge_jump_origin.is_none());
+    }
+
     /// m on a mainline commit: no movement, explanatory status.
     #[test]
     fn merge_jump_reports_mainline_commits() {

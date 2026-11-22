@@ -279,10 +279,10 @@ impl App {
                 KeyCode::Esc => staging.focus = StagingFocus::FileList,
                 KeyCode::Tab => staging.focus = StagingFocus::CommitMessage,
                 KeyCode::BackTab => staging.focus = StagingFocus::FileList,
-                KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown => {
+                KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown | KeyCode::Char('p') => {
                     staging.diff_scroll = staging.diff_scroll.saturating_add(10);
                 }
-                KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp => {
+                KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp | KeyCode::Char('P') => {
                     staging.diff_scroll = staging.diff_scroll.saturating_sub(10);
                 }
                 _ => {}

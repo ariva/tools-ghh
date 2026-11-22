@@ -1,3 +1,5 @@
+//! Help popup: the key list of the active screen, with close controls.
+
 use ratatui::{
     Frame,
     layout::Rect,
@@ -21,7 +23,17 @@ pub fn render_help_popup(frame: &mut Frame, title: &str, items: &[String], area:
 
     let lines: Vec<Line<'static>> = items
         .iter()
-        .map(|item| Line::from(vec![Span::raw("  "), Span::raw(item.clone())]))
+        .map(|item| {
+            // Section dividers (see app/features/help.rs) stand out from the keys.
+            let style = if item.starts_with('─') {
+                Style::default()
+                    .fg(Color::LightCyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            Line::from(vec![Span::raw("  "), Span::styled(item.clone(), style)])
+        })
         .collect();
 
     frame.render_widget(Paragraph::new(lines).block(block), popup);

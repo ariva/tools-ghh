@@ -252,16 +252,20 @@ impl App {
                     self.schedule_selected_stats_load();
                 }
             }
-            KeyCode::Char('m') if self.commit_list_focus == CommitListFocus::List => {
+            KeyCode::Char('E') if self.commit_list_focus == CommitListFocus::List => {
                 if self.full_history_required("moving commits") {
                     return false;
                 }
                 self.mark_perf_action("commit_list.action.enter_move");
                 self.enter_move();
             }
-            KeyCode::Char('t') if self.commit_list_focus == CommitListFocus::List => {
+            KeyCode::Char('m') if self.commit_list_focus == CommitListFocus::List => {
                 self.jump_to_merge_point();
                 self.mark_perf_action("commit_list.action.jump_merge_point");
+            }
+            KeyCode::Char('b') if self.commit_list_focus == CommitListFocus::List => {
+                self.jump_back_from_merge_point();
+                self.mark_perf_action("commit_list.action.jump_back_from_merge_point");
             }
             KeyCode::Char(c @ ('{' | '}')) if self.commit_list_focus == CommitListFocus::List => {
                 self.jump_labeled(c == '}');
@@ -284,7 +288,8 @@ impl App {
                 self.commit_diff_info_scroll = 0;
                 self.schedule_selected_stats_load();
             }
-            KeyCode::PageDown => match self.commit_list_focus {
+            // p / P page like PgDn / PgUp, for keyboards without those keys.
+            KeyCode::PageDown | KeyCode::Char('p') => match self.commit_list_focus {
                 CommitListFocus::List => {
                     self.move_page_down(page_size);
                     self.mark_perf_action("commit_list.action.page_down");
@@ -322,7 +327,7 @@ impl App {
                 CommitListFocus::DiffInfo => {}
                 CommitListFocus::Diff => {}
             },
-            KeyCode::PageUp => match self.commit_list_focus {
+            KeyCode::PageUp | KeyCode::Char('P') => match self.commit_list_focus {
                 CommitListFocus::List => {
                     self.move_page_up(page_size);
                     self.mark_perf_action("commit_list.action.page_up");
@@ -360,7 +365,7 @@ impl App {
                 CommitListFocus::DiffInfo => {}
                 CommitListFocus::Diff => {}
             },
-            KeyCode::Char('e') | KeyCode::Char('E') => {
+            KeyCode::Char('e') => {
                 if self.full_history_required("editing commits") {
                     return false;
                 }
@@ -375,11 +380,11 @@ impl App {
                 self.mark_perf_action("commit_list.action.open_context_menu");
                 self.open_context_menu_for_active_pane()
             }
-            KeyCode::Char('c') => {
+            KeyCode::Char('l') => {
                 self.mark_perf_action("commit_list.action.cycle_commit_list_view");
                 self.cycle_commit_list_view()
             }
-            KeyCode::Char('C') => {
+            KeyCode::Char('L') => {
                 self.mark_perf_action("commit_list.action.cycle_commit_list_view_back");
                 self.cycle_commit_list_view_back()
             }
@@ -404,11 +409,9 @@ impl App {
                 self.toggle_commit_sort()
             }
             KeyCode::Char('/') => self.open_search(),
-            // Shift reverses the match-hop direction: N = previous, P = next.
+            // Shift reverses the match-hop direction: N = previous.
             KeyCode::Char('n') => self.move_search_match(true),
             KeyCode::Char('N') => self.move_search_match(false),
-            KeyCode::Char('p') => self.move_search_match(false),
-            KeyCode::Char('P') => self.move_search_match(true),
             KeyCode::Char('f') => self.toggle_search_filter(),
             KeyCode::Char('F') => self.clear_search_results(),
             KeyCode::Char('s') => {

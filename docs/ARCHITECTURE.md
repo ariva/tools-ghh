@@ -127,7 +127,7 @@ selected, not when it is listed.
 
 ## The commit graph
 
-Three list views, cycled with `c`: focused (gitk-style, the default),
+Three list views, cycled with `l` (`L` backwards): focused (gitk-style, the default),
 graph (classic lanes) and simple (no graph). The two graph views sit
 behind one trait, `GraphEngine` (`git/graph_engine.rs`), so the list
 code does not care which is active:
@@ -140,7 +140,7 @@ code does not care which is active:
 Both have a collapse-aware pass, because a merge's side branch can be
 folded away and the lanes of the visible rows must still connect.
 
-"Which merge brought this commit in" (`t`) is one pass over the loaded
+"Which merge brought this commit in" (`m`) is one pass over the loaded
 history (`compute_merge_points`): mark the first-parent chain of HEAD,
 then flood-fill ancestors from each chain commit, oldest first. The
 README explains the idea with a picture.

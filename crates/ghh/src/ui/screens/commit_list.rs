@@ -641,7 +641,7 @@ pub fn render_title(
 ) {
     let title = Paragraph::new(
         format!(
-            "ghh  \u{2502}  j/k \u{2191}\u{2193}: list or pane scroll  \u{2502}  Tab/Shift+Tab: panes  \u{2502}  v: toggle diff  \u{2502}  .: menu  \u{2502}  c: view {}  \u{2502}  o: order {}  \u{2502}  e/E: edit  \u{2502}  /: search  \u{2502}  n/p: matches  \u{2502}  f: filter  \u{2502}  r: squash  \u{2502}  m: move  \u{2502}  s: staging  \u{2502}  S: stashes  \u{2502}  h/?: help  \u{2502}  q: quit",
+            "ghh  \u{2502}  j/k \u{2191}\u{2193}: list or pane scroll  \u{2502}  Tab/Shift+Tab: panes  \u{2502}  v: toggle diff  \u{2502}  .: menu  \u{2502}  l: list view {}  \u{2502}  o: order {}  \u{2502}  e: edit  \u{2502}  /: search  \u{2502}  n/N: matches  \u{2502}  f: filter  \u{2502}  r: squash  \u{2502}  E: move  \u{2502}  s: staging  \u{2502}  S: stashes  \u{2502}  h/?: help  \u{2502}  q: quit",
             commit_list_view.label(),
             commit_sort.label()
         ),

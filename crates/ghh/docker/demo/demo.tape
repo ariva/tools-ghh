@@ -32,9 +32,13 @@ Sleep 3.5s
 Type "v"
 Sleep 1s
 
-# t: the merge that brought it to main
-Type "t"
+# m: the merge that brought it to main; b: back to where m was pressed; m again for the next step
+Type "m"
 Sleep 3s
+Type "b"
+Sleep 2.5s
+Type "m"
+Sleep 1.5s
 
 # Enter: only what that merge brought in; Backspace: back
 Enter
@@ -71,7 +75,7 @@ Sleep 1s
 # move the newest commit two rows down: preview, apply, confirm
 Type "g"
 Sleep 1s
-Type "m"
+Type "E"
 Sleep 1.5s
 Down@700ms 2
 Sleep 1.5s

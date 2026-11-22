@@ -10,12 +10,12 @@ inside the tool: `h` or `?` opens help for the screen you are on. The
 | # | Question | Answer | More |
 |---|---|---|---|
 | 1.1 | How do I open a repository? | `ghh` in it, or `ghh ~/some/repo` | [README](../README.md#repository-path) |
-| 1.2 | How do I move through the list? | `j`/`k` or arrows, `PgUp`/`PgDn`, `g`/`G` for top and bottom | |
+| 1.2 | How do I move through the list? | `j`/`k` or arrows, `PgUp`/`PgDn` (or `P`/`p` on a keyboard without them), `g`/`G` for top and bottom | |
 | 1.3 | How do I see what a commit changed? | `v` shows the diff pane; `Tab` moves focus to it, `Esc` hides it | |
-| 1.4 | How do I change how the graph is drawn? | `c` cycles focused (gitk-style), graph and simple; `C` goes the other way | [architecture](ARCHITECTURE.md#the-commit-graph) |
+| 1.4 | How do I change how the graph is drawn? | `l` cycles focused (gitk-style), graph and simple; `L` goes the other way | [architecture](ARCHITECTURE.md#the-commit-graph) |
 | 1.5 | How do I hide the commits of a merged branch? | `Space` or `←`/`→` on the merge collapses and expands it | |
 | 1.6 | How do I see only what one merge brought in? | `Enter` on the merge drills in; `Backspace` goes back | |
-| 1.7 | Which pull request did this commit come in with? | `t` jumps to the merge that brought it to the main line | [README](../README.md#find-the-pr-merge-of-any-commit-t) |
+| 1.7 | Which pull request did this commit come in with? | `m` jumps to the merge that brought it to the main line; `b` goes back to the commit you came from | [README](../README.md#find-the-pr-merge-of-any-commit-m) |
 | 1.8 | How do I jump between branch tips and tags? | `{` and `}`: previous and next labelled commit | |
 | 1.9 | How do I go to a commit's parent or child? | `[` first parent, `]` nearest child | |
 | 1.10 | How do I list commits strictly by date? | `o` switches between topological order and date order | |
@@ -28,7 +28,7 @@ inside the tool: `h` or `?` opens help for the screen you are on. The
 |---|---|---|---|
 | 2.1 | How do I search? | `/`, fill one or more fields, `Enter` | |
 | 2.2 | What can I search by? | quick text, hash, message, author, date range, file, branch, tag | the search popup's hint line |
-| 2.3 | How do I go to the next match? | `n` next, `p` previous | |
+| 2.3 | How do I go to the next match? | `n` next, `N` previous | |
 | 2.4 | How do I show only the matches? | `f` filters the list; `f` again removes the filter | |
 | 2.5 | How do I drop the search completely? | `F` | |
 | 2.6 | How do I clear one search field? | `Alt+Backspace` (mac: `Option+Delete`) or `Ctrl+U` | [README](../README.md#search-clearing-an-input-field) |
@@ -47,8 +47,8 @@ force-push afterwards. Each asks before doing anything.
 | 3.3 | How do I do that from a script? | `ghh --hash <hash> --mod-commit "text"` (also `--mod-author`, `--mod-email`, `--mod-date`); `-y` skips the question | |
 | 3.4 | How do I squash commits into one? | `r` on the commit to keep, `Space` on the ones to fold in, `Enter`, edit the message | |
 | 3.5 | Why does squash refuse my selection? | the commits must be a contiguous range on the current branch and none may be a merge | [architecture](ARCHITECTURE.md#rewriting-history) |
-| 3.6 | How do I reorder commits? | `m`, slide the commit with `↑`/`↓`, `Enter` | [README](../README.md#move-a-commit-up-or-down-m) |
-| 3.7 | A move stopped on a conflict. Now what? | fix the files, stage them, press `m`: continue or abort. Plain `git rebase --continue` / `--abort` works too | [README](../README.md#move-a-commit-up-or-down-m) |
+| 3.6 | How do I reorder commits? | `E`, slide the commit with `↑`/`↓`, `Enter` | [README](../README.md#move-a-commit-up-or-down-e) |
+| 3.7 | A move stopped on a conflict. Now what? | fix the files, stage them, press `E`: continue or abort. Plain `git rebase --continue` / `--abort` works too | [README](../README.md#move-a-commit-up-or-down-e) |
 | 3.8 | Why can't I move this commit? | only commits above the newest merge can move, and the working tree must be clean | |
 | 3.9 | I rewrote something by mistake. How do I get it back? | `git reflog` in a shell shows the branch before the change; `git reset --hard <that hash>` returns to it | |
 

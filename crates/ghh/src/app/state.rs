@@ -50,6 +50,9 @@ pub struct App {
     /// mainline). Computed lazily from in-memory topology; see
     /// `git::compute_merge_points`.
     pub(crate) merge_points: Option<Vec<u32>>,
+    /// Hash of the commit the last `m` jump started from; `b` returns to
+    /// it. A hash, not an index: it survives a reload of the list.
+    pub(crate) merge_jump_origin: Option<String>,
     /// Incremental lane engine for the Graph view.
     pub(crate) classic_engine: git::ClassicEngine,
     /// gitk-style engine for the Focused view.
@@ -157,6 +160,7 @@ impl App {
             breadcrumb_start: None,
             branch_commit_cache: HashMap::new(),
             merge_points: None,
+            merge_jump_origin: None,
             classic_engine: git::ClassicEngine::default(),
             tree_engine: git::TreeEngine::default(),
             prefix_writer: None,

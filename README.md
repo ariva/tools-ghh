@@ -1,20 +1,35 @@
 # GIT Handy Helper
-[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-t) · [Move commit](#move-a-commit-up-or-down-m) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
-`ghh` (git handy helper) is a terminal UI for browsing and rewriting Git
-history: a commit graph with merged branches you can collapse or drill
-into, the diff of any commit, search and filter by text, author, date,
-file, branch or tag, and the merge (pull request) that brought a commit
-to the main line in one key. It also rewrites history, asking first:
+`ghh` (git handy helper) is a terminal UI for browsing, searching, analyzing and
+rewriting Git history: a commit graph with merged branches you can collapse or drill
+into, the diff of any commit, and the merge (pull request) that brought a
+commit to the main line in one key. It also rewrites history, asking first:
 edit a commit's message, author or date, squash, move a commit up or
 down; and it stages, commits and browses stashes.
 
-![ghh on a made-up repository: diff pane, t to the PR merge, drill in, collapse, search and filter, stashes, move a commit](docs/assets/demo.gif)
+**An investigative tool for complex searches.** When you need to find out
+who changed what, when and where, press `/` and narrow history down by any
+combination of quick text, hash, message, author, date range, file, branch
+and tag. `n` / `N` walk through the matches, `f` leaves only the matches on
+screen, `F` drops the search.
+
+**The fastest Git CLI tool on large repositories.** History streams in while
+you already work, rows are built only when they scroll into view, and
+whole-graph answers, like the PR merge of every commit, take a single pass.
+
+![ghh on a made-up repository: diff pane, m to the PR merge and b back, drill in, collapse, search and filter, stashes, move a commit](docs/assets/demo.gif)
 
 ## Install
 
+It builds the binary from the source and installs it to `~/.cargo/bin/ghh` (or `$CARGO_HOME/bin` if set).
+
 ```sh
 cargo install --git https://github.com/ariva/tools-ghh tool-ghh --locked   # from GitHub, no checkout
+```
+
+Inside codebase checkouts, use `just install` (requires `just` to be installed).
+```sh
 just install                # from a checkout: cargo install --path crates/ghh --force --locked
 ```
 
@@ -40,9 +55,9 @@ ghh ~/dev/some-repo
 `--path <dir>` (and its alias `--repo`) remain supported for existing scripts;
 passing both the positional path and `--path` is an error.
 
-## Find the PR merge of any commit (`t`)
+## Find the PR merge of any commit (`m`)
 
-Press `t` on any commit to jump to the merge that brought it onto the mainline —
+Press `m` on any commit to jump to the merge that brought it onto the mainline —
 for GitHub-style flows that's literally the "Merge pull request #NNNN …" commit.
 The Details pane also shows it as a `Merged:` line without jumping. This is the
 classic "which merge brought this commit in" problem (`git-when-merged` in tool
@@ -75,15 +90,19 @@ answers it for ALL commits at once):
    O(commits + edges) — one ~50–100 ms pass on a 568k-commit repo, computed
    lazily on first use, cached until reload.
 
-`t` works from any view: drill scopes are exited, an active filter is dropped,
+`b` goes back to the commit `m` jumped from, so you can look at the
+merge and return. It is one step, not a history: after returning, `b` has
+nothing to go back to until the next `m`.
+
+`m` works from any view: drill scopes are exited, an active filter is dropped,
 and collapsed branches are expanded when the merge lives outside them (the
 status line says which). Commits on the mainline itself report "committed
 directly". Pairs well with `Enter` (drill into everything that PR brought) and
 `[` `]` `{` `}` topology jumps.
 
-## Move a commit up or down (`m`)
+## Move a commit up or down (`E`)
 
-Press `m` on a commit, slide it with `↑`/`↓` (live preview, git untouched), `Enter`
+Press `E` (Shift+e) on a commit, slide it with `↑`/`↓` (live preview, git untouched), `Enter`
 to apply, `Esc` to cancel. Applying asks for confirmation: it **rewrites history** —
 every commit from the lowest moved row up to HEAD gets a new hash (force-push needed
 if already pushed).
@@ -92,12 +111,12 @@ if already pushed).
   `--committer-date-is-author-date` so rewritten commits don't all get "now".
 - **Conflict:** the rebase stays in progress and a popup offers *Yes: continue* /
   *No: abort (original history restored)* / *Esc: decide later*. Fix the files, stage
-  them (`s` or `git add`), press `m` to reopen the popup. Plain `git rebase
+  them (`s` or `git add`), press `E` to reopen the popup. Plain `git rebase
   --continue` / `--abort` in a shell works too.
 - Limits: only commits above the newest merge on the current branch; clean working
   tree required; not inside a drill view or search filter.
 
-Related keys: `v` toggles the diff pane, `c` / `C` cycle the list view forward / back.
+Related keys: `v` toggles the diff pane, `l` / `L` cycle the list view forward / back.
 
 ## Browse stashes (`S`)
 

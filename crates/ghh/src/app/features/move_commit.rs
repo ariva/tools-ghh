@@ -1,4 +1,4 @@
-//! Move mode (`Mode::Move`): pick a commit with `m`, slide it with ↑/↓ as a
+//! Move mode (`Mode::Move`): pick a commit with `E`, slide it with ↑/↓ as a
 //! live preview, Enter confirms and reorders history via `git rebase -i`.
 //! A conflict leaves the rebase in progress; a popup offers continue/abort.
 
@@ -182,7 +182,7 @@ impl App {
 
     fn open_move_conflict(&mut self, stopped_at: String) {
         self.status_message = Some(
-            "Rebase in progress — fix conflicts, stage them, then m: continue / abort.".into(),
+            "Rebase in progress — fix conflicts, stage them, then E: continue / abort.".into(),
         );
         self.nav.push(Mode::Confirm(
             ConfirmAction::MoveConflict { stopped_at },

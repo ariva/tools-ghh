@@ -137,85 +137,15 @@ Print runtime, event-loop, rendering, commit-count, and application timing stati
 ghh --stats
 ```
 
-## Source structure
+## Documentation
 
-```
-crates/ghh/src/
-├── main.rs              CLI argument parsing, TUI initialization, event loop
-├── stats.rs             Runtime and application statistics collector
-│
-├── automation/          Automation / scripted replay
-│   ├── mod.rs           Re-exports
-│   ├── commands.rs      AutomationCommand enum (data)
-│   ├── loader.rs        Script/CSV loader and parser
-│   └── keys.rs          Key enum + FromStr parser + unit tests
-│
-├── git/                 All git operations (no UI dependencies)
-│   ├── mod.rs           Re-exports
-│   ├── models.rs        Plain data types: CommitInfo, CommitStats, FileStatus, StageState
-│   ├── graph.rs         Classic lane engine — first-free-column prefixes, branch commits
-│   ├── graph_engine.rs  GraphEngine trait + ClassicEngine/TreeEngine implementations;
-│   │                    each commit-list view plugs in through this interface
-│   ├── tree_layout.rs   gitk-style engine (focused view): token-ordered lanes, arrow cuts
-│   │                    for long-range merges, per-line colors (+ tests)
-│   ├── history.rs       load_commits, modify_commit, squash_commits, get_commit_stats
-│   ├── reorder.rs       move_commit via scripted `git rebase -i`, continue/abort (+ tests)
-│   ├── staging.rs       load_status, stage/unstage helpers, commit_staged, get_file_diff
-│   └── stash.rs         list_stashes, patch/stat, apply/pop/drop via git CLI (+ test)
-│
-├── app/                 Application state and input handling
-│   ├── mod.rs           Re-exports
-│   ├── state.rs         App struct: shared state, construction, cross-cutting helpers
-│   │                    (mode(), commit hash→index lookup, replace_commits)
-│   ├── nav.rs           Navigator — stack-based screen/popup navigation (+ tests).
-│   │                    push() opens, pop() returns to the opener, reset() ends a flow
-│   ├── models.rs        Enums/structs with no heavy logic: ConfirmAction, Mode, EditField,
-│   │                    VisibleRow, SquashState
-│   ├── input.rs         Global key dispatch; commit-list, confirm and debugger key handlers
-│   ├── mouse.rs         Clicks, double-click word selection, drag selection, scrolling
-│   ├── layout.rs        Screen geometry: pure region math (+ tests) and popup rects
-│   ├── commit_list.rs   Selection movement, lazy stats/diff loading, branch collapsing,
-│   │                    graph-prefix computation
-│   ├── history_load.rs  Background progressive history loading over mpsc channels
-│   ├── search_ops.rs    Search execution + autocomplete streaming (+ date-range tests)
-│   ├── selection.rs     Mouse text selection: panel bounds, text extraction
-│   ├── context_menu.rs  Right-click / `.` menu: actions, execution, copy formatting
-│   ├── clipboard.rs     arboard + CLI-fallback clipboard, paste routing
-│   ├── help.rs          Help popup content per screen
-│   ├── editor.rs        Generic vim-like MultilineEditor (shared by all message editors)
-│   ├── editor_keys.rs   The one shared vim key-binding handler for those editors (+ tests)
-│   ├── edit.rs          EditState + commit-edit popup (↑↓ field nav, Enter opens editor)
-│   ├── staging.rs       StagingState / StagingFocus + staging screen + commit message editor
-│   ├── squash.rs        SquashMessageState + squash picker and message editor
-│   ├── move_commit.rs   Move mode: ↑/↓ preview, confirm, conflict continue/abort popup
-│   └── stash.rs         StashState + stash screen keys, apply / pop / drop
-│
-├── events/              Event bus + event model (no dependencies on app/ or ui/)
-│   ├── mod.rs           Re-exports
-│   ├── models.rs        AppEvent, ScreenId (9 human-readable IDs), ActionKind, TraceLevel;
-│   │                    format_key_event() — key → display string; EventTime (Instant + local wall-clock)
-│   └── bus.rs           EventBus (500-event ring buffer, scroll state, emit() logs via tracing);
-│                        EventHandler trait — implement to add custom sinks
-│
-├── tracer.rs            tracing subscriber setup: file writer (tracing-appender) + EventBusLayer
-│                        (forwards tracing events → EventBus; filters "events::bus" target to avoid recursion)
-│
-└── ui/                  Rendering only — no business logic
-    ├── mod.rs           Re-exports
-    ├── renderer.rs      Top-level render() dispatcher
-    ├── helpers.rs       centered_rect(), truncate()
-    ├── screens/         Full-screen views
-    │   ├── mod.rs       Re-exports
-    │   ├── commit_list.rs   Commit list, graph-lane colouring, title bars
-    │   ├── details.rs   Details panel + status bar
-    │   ├── staging.rs   Staging view (file list + diff + commit message)
-    │   └── debugger.rs  Event log viewer (D to open/close from any screen)
-    └── popups/          Modal overlays
-        ├── mod.rs       Re-exports
-        ├── confirm.rs   Confirm dialog
-        ├── edit.rs      Commit edit popup
-        └── squash_msg.rs    Multi-line editor popup (shared: squash message, commit message, field editor)
-```
+| | |
+|---|---|
+| [docs/FAQ.md](docs/FAQ.md) | questions and the key that answers each |
+| [docs/SETTINGS.md](docs/SETTINGS.md) | every settings key |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | how the code is put together, module by module, and why |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | building, testing, adding a feature |
+| [docs/CODING-STYLE.md](docs/CODING-STYLE.md) | the rules new code follows |
 
 ## Logging (`--logs`)
 

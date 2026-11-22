@@ -181,8 +181,7 @@ mod tests {
             tracing::debug!("d");
             tracing::trace!("t");
         });
-        let got: Vec<(String, String)> =
-            rx.try_iter().map(|t| (t.level, t.message)).collect();
+        let got: Vec<(String, String)> = rx.try_iter().map(|t| (t.level, t.message)).collect();
         assert_eq!(
             got,
             vec![
@@ -220,12 +219,37 @@ mod tests {
         use tracing::Level;
         use tracing_subscriber::filter::LevelFilter;
         // Events: only the switch matters (bus logs them at DEBUG).
-        assert!(file_log_allows("events::bus", &Level::DEBUG, LevelFilter::ERROR, true));
-        assert!(!file_log_allows("events::bus", &Level::ERROR, LevelFilter::TRACE, false));
+        assert!(file_log_allows(
+            "events::bus",
+            &Level::DEBUG,
+            LevelFilter::ERROR,
+            true
+        ));
+        assert!(!file_log_allows(
+            "events::bus",
+            &Level::ERROR,
+            LevelFilter::TRACE,
+            false
+        ));
         // App traces: level gate, independent of the events switch.
-        assert!(file_log_allows("app", &Level::INFO, LevelFilter::INFO, false));
-        assert!(!file_log_allows("app", &Level::DEBUG, LevelFilter::INFO, true));
-        assert!(file_log_allows("app", &Level::TRACE, LevelFilter::TRACE, false));
+        assert!(file_log_allows(
+            "app",
+            &Level::INFO,
+            LevelFilter::INFO,
+            false
+        ));
+        assert!(!file_log_allows(
+            "app",
+            &Level::DEBUG,
+            LevelFilter::INFO,
+            true
+        ));
+        assert!(file_log_allows(
+            "app",
+            &Level::TRACE,
+            LevelFilter::TRACE,
+            false
+        ));
     }
 
     /// events::bus target must be skipped — it is the recursion guard.

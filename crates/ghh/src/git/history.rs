@@ -1,5 +1,5 @@
+use crate::git::error::{Error, Result};
 use crate::git::models::{CommitInfo, CommitStats, RefKind, RefLabel};
-use anyhow::{Result, anyhow};
 use chrono::{NaiveDate, NaiveDateTime};
 use git2::{Oid, Repository, Signature, Sort, Time};
 use std::collections::{HashMap, HashSet};
@@ -48,11 +48,13 @@ pub fn load_ref_labels(repo_path: &Path) -> HashMap<String, Vec<RefLabel>> {
             continue;
         };
         let is_head = kind == RefKind::Branch && head_branch.as_deref() == Some(name.as_str());
-        map.entry(commit.id().to_string()).or_default().push(RefLabel {
-            name,
-            kind,
-            is_head,
-        });
+        map.entry(commit.id().to_string())
+            .or_default()
+            .push(RefLabel {
+                name,
+                kind,
+                is_head,
+            });
     }
     for labels in map.values_mut() {
         // HEAD branch first, then branches < remotes < tags, then by name.
@@ -73,10 +75,7 @@ pub fn count_head_commits(repo_path: &Path) -> Result<usize> {
         .args(["rev-list", "--count", "HEAD"])
         .output()?;
     if !output.status.success() {
-        return Err(anyhow!(
-            "git rev-list --count failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(Error::command("git rev-list --count", &output.stderr));
     }
     Ok(String::from_utf8(output.stdout)?.trim().parse()?)
 }
@@ -95,10 +94,7 @@ pub fn ensure_commit_graph(repo_path: &Path) -> Result<bool> {
         .args(["commit-graph", "write", "--reachable"])
         .output()?;
     if !output.status.success() {
-        return Err(anyhow!(
-            "git commit-graph write failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(Error::command("git commit-graph write", &output.stderr));
     }
     Ok(true)
 }
@@ -115,10 +111,7 @@ fn resolve_git_path(repo_path: &Path, git_path: &str) -> Result<std::path::PathB
         ])
         .output()?;
     if !output.status.success() {
-        return Err(anyhow!(
-            "git rev-parse failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(Error::command("git rev-parse", &output.stderr));
     }
     Ok(std::path::PathBuf::from(
         String::from_utf8(output.stdout)?.trim(),
@@ -136,7 +129,6 @@ pub enum CommitSort {
 }
 
 impl CommitSort {
-
     fn libgit2_sorting(self) -> Sort {
         match self {
             Self::Topo => Sort::TOPOLOGICAL,
@@ -247,10 +239,7 @@ where
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn()?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| anyhow!("Cannot read rev-list output"))?;
+    let stdout = child.stdout.take().ok_or(Error::NoRevListOutput)?;
     let mut lines = std::io::BufReader::new(stdout).lines();
     let git_spawn = open_started.elapsed();
 
@@ -476,7 +465,7 @@ pub fn file_status_in_commit(
     let repo = Repository::discover(repo_path)?;
     let commit = repo
         .revparse_single(hash)
-        .map_err(|_| anyhow!("Commit not found: {hash}"))?
+        .map_err(|_| Error::CommitNotFound(hash.to_string()))?
         .peel_to_commit()?;
     let tree = commit.tree()?;
     let parent_tree = match commit.parent(0) {
@@ -487,8 +476,7 @@ pub fn file_status_in_commit(
     for pattern in patterns {
         options.pathspec(pattern);
     }
-    let mut diff =
-        repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut options))?;
+    let mut diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut options))?;
     let mut find = git2::DiffFindOptions::new();
     find.renames(true);
     diff.find_similar(Some(&mut find))?;
@@ -505,7 +493,7 @@ pub fn get_commit_author_email(repo_path: &Path, hash: &str) -> Result<String> {
     let repo = Repository::discover(repo_path)?;
     let oid = repo
         .revparse_single(hash)
-        .map_err(|_| anyhow!("Commit not found: {hash}"))?;
+        .map_err(|_| Error::CommitNotFound(hash.to_string()))?;
     let commit = oid.peel_to_commit()?;
     Ok(commit.author().email().unwrap_or("").to_string())
 }
@@ -514,7 +502,7 @@ pub fn get_commit_full_message(repo_path: &Path, hash: &str) -> Result<String> {
     let repo = Repository::discover(repo_path)?;
     let oid = repo
         .revparse_single(hash)
-        .map_err(|_| anyhow!("Commit not found: {hash}"))?;
+        .map_err(|_| Error::CommitNotFound(hash.to_string()))?;
     let commit = oid.peel_to_commit()?;
     Ok(commit.message().unwrap_or("").to_string())
 }
@@ -542,12 +530,12 @@ pub fn matching_commit_hashes_for_file(
             command.arg("-M");
         }
     }
-    let output = command.args(["--format=%H", "--"]).args(patterns).output()?;
+    let output = command
+        .args(["--format=%H", "--"])
+        .args(patterns)
+        .output()?;
     if !output.status.success() {
-        return Err(anyhow!(
-            "git file search failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(Error::command("git file search", &output.stderr));
     }
     Ok(parse_hash_lines(&output.stdout))
 }
@@ -567,10 +555,7 @@ pub fn list_repo_files(repo_path: &Path) -> Result<Vec<String>> {
         .args(["ls-files", "--cached", "--others", "--exclude-standard"])
         .output()?;
     if !output.status.success() {
-        return Err(anyhow!(
-            "git file list failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(Error::command("git file list", &output.stderr));
     }
     Ok(String::from_utf8_lossy(&output.stdout)
         .lines()
@@ -603,11 +588,10 @@ pub fn populate_commit_parents(
         if commit.parent_indices.is_some() {
             continue;
         }
-        let oid = Oid::from_str(&commit.hash)
-            .map_err(|_| anyhow!("Commit not found: {}", commit.hash))?;
+        let oid =
+            Oid::from_str(&commit.hash).map_err(|_| Error::CommitNotFound(commit.hash.clone()))?;
         let git_commit = repo.find_commit(oid)?;
-        let parent_hashes: Vec<String> =
-            git_commit.parent_ids().map(|id| id.to_string()).collect();
+        let parent_hashes: Vec<String> = git_commit.parent_ids().map(|id| id.to_string()).collect();
         commit.parent_indices = Some(
             parent_hashes
                 .iter()
@@ -631,14 +615,12 @@ pub fn modify_commit(
 
     let target_oid = repo
         .revparse_single(target_hash)
-        .map_err(|_| anyhow!("Commit '{}' not found", target_hash))?
+        .map_err(|_| Error::CommitNotFound(target_hash.to_string()))?
         .peel_to_commit()?
         .id();
 
     let head = repo.head()?;
-    let head_oid = head
-        .target()
-        .ok_or_else(|| anyhow!("HEAD is not a direct reference"))?;
+    let head_oid = head.target().ok_or(Error::HeadNotDirect)?;
 
     let mut revwalk = repo.revwalk()?;
     revwalk.push(head_oid)?;
@@ -656,10 +638,7 @@ pub fn modify_commit(
     }
 
     if !found {
-        return Err(anyhow!(
-            "Commit '{}' not found in the current branch history",
-            target_hash
-        ));
+        return Err(Error::NotInBranchHistory(target_hash.to_string()));
     }
 
     commits_to_rewrite.reverse();
@@ -677,7 +656,7 @@ pub fn modify_commit(
         let new_parents: Vec<git2::Commit<'_>> = new_parent_oids
             .iter()
             .map(|&oid| repo.find_commit(oid))
-            .collect::<Result<_, _>>()?;
+            .collect::<std::result::Result<_, git2::Error>>()?;
         let new_parents_refs: Vec<&git2::Commit<'_>> = new_parents.iter().collect();
 
         let old_author = old_commit.author();
@@ -745,10 +724,7 @@ pub fn modify_commit(
 
     let new_head_oid = oid_map[&head_oid];
     if head.is_branch() {
-        let head_ref_name = head
-            .name()
-            .ok_or_else(|| anyhow!("Cannot get HEAD ref name"))?
-            .to_string();
+        let head_ref_name = head.name().ok_or(Error::HeadRefName)?.to_string();
         repo.find_reference(&head_ref_name)?
             .set_target(new_head_oid, "ghh: rewrite commit")?;
     } else {
@@ -782,17 +758,16 @@ fn parse_date_to_git_time(date_str: &str, offset_minutes: i32, fill_seconds: u32
         return Ok(in_offset(dt));
     }
     if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M") {
-        return Ok(in_offset(dt + chrono::Duration::seconds(i64::from(fill_seconds))));
+        return Ok(in_offset(
+            dt + chrono::Duration::seconds(i64::from(fill_seconds)),
+        ));
     }
 
     if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
         return Ok(in_offset(d.and_hms_opt(0, 0, fill_seconds).unwrap()));
     }
 
-    Err(anyhow!(
-        "Could not parse date '{}'. Supported: YYYY-MM-DD, 'YYYY-MM-DD HH:MM', 'YYYY-MM-DD HH:MM:SS', or Unix timestamp",
-        s
-    ))
+    Err(Error::InvalidDate(s.to_string()))
 }
 
 /// Squash a set of commits (base + squash_hashes) into one commit.
@@ -803,25 +778,27 @@ pub fn squash_commits(
     message: &str,
 ) -> Result<()> {
     if squash_hashes.is_empty() {
-        return Err(anyhow!("No commits selected for squashing"));
+        return Err(Error::NothingToSquash);
     }
 
     let repo = Repository::discover(repo_path)?;
 
     let base_oid = resolve_commit_oid(&repo, base_hash)
-        .map_err(|_| anyhow!("Base commit '{}' not found", base_hash.trim()))?;
+        .map_err(|_| Error::SquashBaseNotFound(base_hash.trim().to_string()))?;
 
     let squash_oids: Vec<Oid> = squash_hashes
         .iter()
         .map(|hash| {
-            resolve_commit_oid(&repo, hash)
-                .map_err(|e| anyhow!("Cannot find squash commit '{}': {}", hash.trim(), e))
+            resolve_commit_oid(&repo, hash).map_err(|e| Error::SquashCommitNotFound {
+                hash: hash.trim().to_string(),
+                source: Box::new(e),
+            })
         })
         .collect::<Result<_>>()?;
     let squash_set: HashSet<Oid> = squash_oids.iter().copied().collect();
 
     if squash_set.contains(&base_oid) {
-        return Err(anyhow!("Cannot squash the base commit into itself"));
+        return Err(Error::SquashBaseIntoItself);
     }
 
     let all_selected: HashSet<Oid> = squash_set
@@ -831,9 +808,7 @@ pub fn squash_commits(
         .collect();
 
     let head = repo.head()?;
-    let head_oid = head
-        .target()
-        .ok_or_else(|| anyhow!("HEAD is not a direct reference"))?;
+    let head_oid = head.target().ok_or(Error::HeadNotDirect)?;
 
     let mut revwalk = repo.revwalk()?;
     revwalk.push(head_oid)?;
@@ -852,20 +827,15 @@ pub fn squash_commits(
         }
     }
     if seen < all_selected.len() {
-        return Err(anyhow!(
-            "Some selected commits are not in the current branch history \
-             (found {}/{} selected commits)",
-            seen,
-            all_selected.len()
-        ));
+        return Err(Error::SquashNotInHistory {
+            found: seen,
+            selected: all_selected.len(),
+        });
     }
 
     for &oid in &all_selected {
         if repo.find_commit(oid)?.parent_count() > 1 {
-            return Err(anyhow!(
-                "Commit '{}' is a merge commit — squashing merge commits is not supported",
-                &oid.to_string()[..7]
-            ));
+            return Err(Error::SquashMerge(oid.to_string()[..7].to_string()));
         }
     }
 
@@ -883,12 +853,10 @@ pub fn squash_commits(
         if !all_selected.contains(id) {
             let c = repo.find_commit(*id)?;
             let msg = c.message().unwrap_or("").lines().next().unwrap_or("");
-            return Err(anyhow!(
-                "Commit '{}' ({}) lies between selected commits but is not marked — \
-                 only a contiguous range is supported",
-                &id.to_string()[..7],
-                msg
-            ));
+            return Err(Error::SquashGap {
+                hash: id.to_string()[..7].to_string(),
+                subject: msg.to_string(),
+            });
         }
     }
 
@@ -911,7 +879,7 @@ pub fn squash_commits(
         let new_parents: Vec<git2::Commit<'_>> = new_parent_oids
             .iter()
             .map(|&oid| repo.find_commit(oid))
-            .collect::<Result<_, _>>()?;
+            .collect::<std::result::Result<_, git2::Error>>()?;
         let new_parents_refs: Vec<&git2::Commit<'_>> = new_parents.iter().collect();
 
         if old_oid == oldest_sel_oid {
@@ -969,10 +937,7 @@ pub fn squash_commits(
 
     let new_head_oid = oid_map[&head_oid];
     if head.is_branch() {
-        let head_ref_name = head
-            .name()
-            .ok_or_else(|| anyhow!("Cannot get HEAD ref name"))?
-            .to_string();
+        let head_ref_name = head.name().ok_or(Error::HeadRefName)?.to_string();
         repo.find_reference(&head_ref_name)?
             .set_target(new_head_oid, "ghh: squash commits")?;
     } else {
@@ -984,18 +949,20 @@ pub fn squash_commits(
 
 fn resolve_commit_oid(repo: &Repository, hash: &str) -> Result<Oid> {
     let normalized = hash.trim();
-    let oid = Oid::from_str(normalized)
-        .map_err(|e| anyhow!("invalid commit hash '{}': {}", normalized, e))?;
+    let oid = Oid::from_str(normalized).map_err(|source| Error::InvalidHash {
+        hash: normalized.to_string(),
+        source,
+    })?;
     repo.find_commit(oid)
         .map(|_| oid)
-        .map_err(|e| anyhow!("commit object unavailable: {}", e))
+        .map_err(Error::CommitUnavailable)
 }
 
 pub fn get_commit_stats(repo_path: &Path, hash: &str) -> Result<CommitStats> {
     let repo = Repository::discover(repo_path)?;
     let oid = repo
         .revparse_single(hash)
-        .map_err(|_| anyhow!("Commit not found: {hash}"))?;
+        .map_err(|_| Error::CommitNotFound(hash.to_string()))?;
     let commit = oid.peel_to_commit()?;
     let tree = commit.tree()?;
 
@@ -1034,7 +1001,7 @@ pub fn get_commit_diff(repo_path: &Path, hash: &str) -> Result<String> {
     let repo = Repository::discover(repo_path)?;
     let oid = repo
         .revparse_single(hash)
-        .map_err(|_| anyhow!("Commit not found: {hash}"))?;
+        .map_err(|_| Error::CommitNotFound(hash.to_string()))?;
     let commit = oid.peel_to_commit()?;
     let tree = commit.tree()?;
 
@@ -1084,10 +1051,7 @@ pub fn get_commit_patch(repo_path: &Path, hash: &str) -> Result<String> {
         ])
         .output()?;
     if !output.status.success() {
-        return Err(anyhow!(
-            "git diff-tree failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(Error::command("git diff-tree", &output.stderr));
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
@@ -1110,7 +1074,8 @@ mod tests {
             .commit(Some("HEAD"), &sig, &sig, "initial", &tree, &[])
             .unwrap();
         let commit_obj = repo.find_object(oid, None).unwrap();
-        repo.tag("v1", &commit_obj, &sig, "annotated", false).unwrap();
+        repo.tag("v1", &commit_obj, &sig, "annotated", false)
+            .unwrap();
 
         let labels = super::load_ref_labels(&dir);
         let on_commit = &labels[&oid.to_string()];
@@ -1184,12 +1149,21 @@ mod tests {
                 .map(|oid| repo.find_commit(*oid).unwrap())
                 .collect();
             let parent_refs: Vec<&git2::Commit> = parent_commits.iter().collect();
-            repo.commit(None, &sig, &sig, msg, &tree, &parent_refs).unwrap()
+            repo.commit(None, &sig, &sig, msg, &tree, &parent_refs)
+                .unwrap()
         };
         let base = make_commit(&[], &[("CHANGELOG.md", "v1"), ("other.txt", "x")], "base");
         // Side branch edits CHANGELOG.md; mainline edits other.txt.
-        let side = make_commit(&[base], &[("CHANGELOG.md", "v2"), ("other.txt", "x")], "side");
-        let main = make_commit(&[base], &[("CHANGELOG.md", "v1"), ("other.txt", "y")], "main");
+        let side = make_commit(
+            &[base],
+            &[("CHANGELOG.md", "v2"), ("other.txt", "x")],
+            "side",
+        );
+        let main = make_commit(
+            &[base],
+            &[("CHANGELOG.md", "v1"), ("other.txt", "y")],
+            "main",
+        );
         // Merge takes the side's CHANGELOG.md: TREESAME to side -> default
         // git log -- CHANGELOG.md drops it.
         let merge = make_commit(
@@ -1197,7 +1171,8 @@ mod tests {
             &[("CHANGELOG.md", "v2"), ("other.txt", "y")],
             "merge side",
         );
-        repo.reference("refs/heads/main", merge, true, "test").unwrap();
+        repo.reference("refs/heads/main", merge, true, "test")
+            .unwrap();
         let hashes =
             super::matching_commit_hashes_for_file(&dir, &["CHANGELOG.md"], true, None).unwrap();
         assert!(hashes.contains(&base.to_string()));
@@ -1208,7 +1183,8 @@ mod tests {
         );
         assert!(!hashes.contains(&main.to_string()), "main didn't touch it");
         // Fast mode documents the tradeoff: the merge is simplified away.
-        let fast = super::matching_commit_hashes_for_file(&dir, &["CHANGELOG.md"], false, None).unwrap();
+        let fast =
+            super::matching_commit_hashes_for_file(&dir, &["CHANGELOG.md"], false, None).unwrap();
         assert!(!fast.contains(&merge.to_string()), "fast mode skips merges");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1232,13 +1208,18 @@ mod tests {
                 .map(|oid| repo.find_commit(*oid).unwrap())
                 .collect();
             let parent_refs: Vec<&git2::Commit> = parent_commits.iter().collect();
-            repo.commit(None, &sig, &sig, msg, &tree, &parent_refs).unwrap()
+            repo.commit(None, &sig, &sig, msg, &tree, &parent_refs)
+                .unwrap()
         };
         let added = make_commit(&[], &[("file.txt", "v1"), ("keep.txt", "k")], "add file");
-        let modified =
-            make_commit(&[added], &[("file.txt", "v2"), ("keep.txt", "k")], "modify file");
+        let modified = make_commit(
+            &[added],
+            &[("file.txt", "v2"), ("keep.txt", "k")],
+            "modify file",
+        );
         let deleted = make_commit(&[modified], &[("keep.txt", "k")], "delete file");
-        repo.reference("refs/heads/main", deleted, true, "test").unwrap();
+        repo.reference("refs/heads/main", deleted, true, "test")
+            .unwrap();
         let by = |filter: Option<char>| {
             super::matching_commit_hashes_for_file(&dir, &["file.txt"], true, filter).unwrap()
         };
@@ -1289,7 +1270,9 @@ mod tests {
 
         // Raw unix timestamp passes through untouched.
         assert_eq!(
-            parse_date_to_git_time("1608910260", 180, 0).unwrap().seconds(),
+            parse_date_to_git_time("1608910260", 180, 0)
+                .unwrap()
+                .seconds(),
             1608910260
         );
     }
@@ -1298,26 +1281,38 @@ mod tests {
     /// seconds — edited commits must not all land on :00.
     #[test]
     fn parse_date_fills_missing_seconds() {
-        let base = parse_date_to_git_time("2020-12-25 18:31", 180, 0).unwrap().seconds();
+        let base = parse_date_to_git_time("2020-12-25 18:31", 180, 0)
+            .unwrap()
+            .seconds();
         // HH:MM input: fill applied.
         assert_eq!(
-            parse_date_to_git_time("2020-12-25 18:31", 180, 42).unwrap().seconds(),
+            parse_date_to_git_time("2020-12-25 18:31", 180, 42)
+                .unwrap()
+                .seconds(),
             base + 42
         );
         // Explicit seconds win — no fill.
         assert_eq!(
-            parse_date_to_git_time("2020-12-25 18:31:07", 180, 42).unwrap().seconds(),
+            parse_date_to_git_time("2020-12-25 18:31:07", 180, 42)
+                .unwrap()
+                .seconds(),
             base + 7
         );
         // Date-only input: midnight + fill.
-        let midnight = parse_date_to_git_time("2020-12-25", 0, 0).unwrap().seconds();
+        let midnight = parse_date_to_git_time("2020-12-25", 0, 0)
+            .unwrap()
+            .seconds();
         assert_eq!(
-            parse_date_to_git_time("2020-12-25", 0, 59).unwrap().seconds(),
+            parse_date_to_git_time("2020-12-25", 0, 59)
+                .unwrap()
+                .seconds(),
             midnight + 59
         );
         // Out-of-range fill is clamped, never rolls the minute over.
         assert_eq!(
-            parse_date_to_git_time("2020-12-25 18:31", 180, 99).unwrap().seconds(),
+            parse_date_to_git_time("2020-12-25 18:31", 180, 99)
+                .unwrap()
+                .seconds(),
             base + 59
         );
     }
@@ -1421,8 +1416,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ghh-non-repo-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let result =
-            super::load_commits_progressive(&dir, CommitSort::Topo, &[2], |_, _, _| true);
+        let result = super::load_commits_progressive(&dir, CommitSort::Topo, &[2], |_, _, _| true);
         assert!(result.is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1439,12 +1433,21 @@ mod tests {
         let tree = repo.find_tree(tree_id).unwrap();
         let mut parent: Option<git2::Oid> = None;
         for i in 0..5 {
-            let parents: Vec<git2::Commit> =
-                parent.map(|p| repo.find_commit(p).unwrap()).into_iter().collect();
+            let parents: Vec<git2::Commit> = parent
+                .map(|p| repo.find_commit(p).unwrap())
+                .into_iter()
+                .collect();
             let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
             parent = Some(
-                repo.commit(Some("HEAD"), &sig, &sig, &format!("c{i}"), &tree, &parent_refs)
-                    .unwrap(),
+                repo.commit(
+                    Some("HEAD"),
+                    &sig,
+                    &sig,
+                    &format!("c{i}"),
+                    &tree,
+                    &parent_refs,
+                )
+                .unwrap(),
             );
         }
 
@@ -1529,10 +1532,18 @@ mod perf_probe {
             .count();
         let search_ms = t.elapsed().as_millis();
 
-        println!("bench 100k: layout={layout_ms}ms tree={tree_ms}ms classic={classic_ms}ms search={search_ms}ms ({hits} hits)");
-        assert!(layout_ms < 2_000, "TreeLayout::build regressed: {layout_ms}ms");
+        println!(
+            "bench 100k: layout={layout_ms}ms tree={tree_ms}ms classic={classic_ms}ms search={search_ms}ms ({hits} hits)"
+        );
+        assert!(
+            layout_ms < 2_000,
+            "TreeLayout::build regressed: {layout_ms}ms"
+        );
         assert!(tree_ms < 2_000, "tree lanes regressed: {tree_ms}ms");
-        assert!(classic_ms < 3_000, "classic lanes regressed: {classic_ms}ms");
+        assert!(
+            classic_ms < 3_000,
+            "classic lanes regressed: {classic_ms}ms"
+        );
         assert!(search_ms < 1_000, "search scan regressed: {search_ms}ms");
         assert_eq!(hits, 100_000);
     }
@@ -1548,7 +1559,11 @@ mod perf_probe {
         }
         let t = Instant::now();
         let mut commits = super::load_commits(repo, super::CommitSort::Topo).unwrap();
-        println!("load_commits (hybrid walk): {:?} for {} commits", t.elapsed(), commits.len());
+        println!(
+            "load_commits (hybrid walk): {:?} for {} commits",
+            t.elapsed(),
+            commits.len()
+        );
 
         let t = Instant::now();
         let layout = crate::git::tree_layout::TreeLayout::build(&commits);

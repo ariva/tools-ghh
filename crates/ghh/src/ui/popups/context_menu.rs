@@ -109,11 +109,17 @@ mod tests {
         let all = rows.join("\n");
         assert!(all.contains("Copy hash"), "menu content missing:\n{all}");
         assert!(all.contains("destructive"), "fence label missing:\n{all}");
-        assert!(all.contains("Edit commit"), "destructive entry missing:\n{all}");
+        assert!(
+            all.contains("Edit commit"),
+            "destructive entry missing:\n{all}"
+        );
         assert!(all.contains("Squash from here"), "entry missing:\n{all}");
         let fence_row = rows.iter().position(|r| r.contains("destructive")).unwrap();
         let edit_row = rows.iter().position(|r| r.contains("Edit commit")).unwrap();
         let copy_row = rows.iter().position(|r| r.contains("Copy hash")).unwrap();
-        assert!(copy_row < fence_row && fence_row < edit_row, "fence order wrong:\n{all}");
+        assert!(
+            copy_row < fence_row && fence_row < edit_row,
+            "fence order wrong:\n{all}"
+        );
     }
 }

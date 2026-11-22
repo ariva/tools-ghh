@@ -8,7 +8,7 @@ use crate::app::models::{ConfirmAction, Mode};
 use crate::events::EventTime;
 use crate::events::{ActionKind, AppEvent};
 use crate::git;
-use anyhow::Result;
+use crate::git::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::widgets::ListState;
 

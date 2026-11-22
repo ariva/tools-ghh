@@ -56,7 +56,6 @@ impl SearchField {
             Self::Tag => 8,
         }
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -209,16 +208,20 @@ pub mod input_edit {
         if !ch.is_ascii_digit() {
             return None;
         }
-        let extended: String =
-            format!("{value}{ch}").chars().filter(char::is_ascii_digit).collect();
+        let extended: String = format!("{value}{ch}")
+            .chars()
+            .filter(char::is_ascii_digit)
+            .collect();
         date_digits_plausible(&extended).then(|| format_date_digits(&extended))
     }
 
     /// Backspace/Delete on a date drop the LAST digit (masked input).
     pub fn date_backspace(value: &str) -> String {
         let digits: String = value.chars().filter(char::is_ascii_digit).collect();
-        let trimmed: String =
-            digits.chars().take(digits.chars().count().saturating_sub(1)).collect();
+        let trimmed: String = digits
+            .chars()
+            .take(digits.chars().count().saturating_sub(1))
+            .collect();
         format_date_digits(&trimmed)
     }
 }
@@ -329,7 +332,10 @@ impl SearchQuery {
                 .date_start
                 .as_ref()
                 .is_none_or(|start| date_key >= start.as_str())
-            && self.date_end.as_ref().is_none_or(|end| date_key <= end.as_str())
+            && self
+                .date_end
+                .as_ref()
+                .is_none_or(|end| date_key <= end.as_str())
             && file_hashes.is_none_or(|hashes| hashes.contains(&commit.hash))
             && branch_hashes.is_none_or(|hashes| hashes.contains(&commit.hash))
             && tag_hashes.is_none_or(|hashes| hashes.contains(&commit.hash))
@@ -385,13 +391,25 @@ pub struct ExecutedTerms {
 
 impl ExecutedTerms {
     pub fn for_message(&self) -> Vec<&str> {
-        self.message.iter().chain(&self.quick).map(String::as_str).collect()
+        self.message
+            .iter()
+            .chain(&self.quick)
+            .map(String::as_str)
+            .collect()
     }
     pub fn for_hash(&self) -> Vec<&str> {
-        self.hash.iter().chain(&self.quick).map(String::as_str).collect()
+        self.hash
+            .iter()
+            .chain(&self.quick)
+            .map(String::as_str)
+            .collect()
     }
     pub fn for_author(&self) -> Vec<&str> {
-        self.author.iter().chain(&self.quick).map(String::as_str).collect()
+        self.author
+            .iter()
+            .chain(&self.quick)
+            .map(String::as_str)
+            .collect()
     }
     pub fn for_file(&self) -> Vec<&str> {
         self.file.iter().map(String::as_str).collect()
@@ -399,7 +417,10 @@ impl ExecutedTerms {
     /// Ranges to mark in a "YYYY-MM-DD HH:MM" date text: quick-term hits,
     /// plus the day part when a date bound filtered this search.
     pub fn date_ranges(&self, date_text: &str) -> Vec<(usize, usize)> {
-        let mut ranges = match_ranges(date_text, &self.quick.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut ranges = match_ranges(
+            date_text,
+            &self.quick.iter().map(String::as_str).collect::<Vec<_>>(),
+        );
         if self.date_bounded && date_text.len() >= 10 {
             ranges.push((0, 10));
             ranges.sort_unstable();
@@ -546,7 +567,6 @@ impl SearchState {
             None => value,
         }
     }
-
 }
 
 /// fzf-style multi-term fuzzy ranking for path candidates. Every whitespace-
@@ -672,10 +692,7 @@ impl OrSegments {
         let mut joiner: Option<std::ops::Range<usize>> = None;
         let mut i = 0;
         while i + 4 <= chars.len() {
-            if chars[i] == ' '
-                && chars[i + 1] == 'O'
-                && chars[i + 2] == 'R'
-                && chars[i + 3] == ' '
+            if chars[i] == ' ' && chars[i + 1] == 'O' && chars[i + 2] == 'R' && chars[i + 3] == ' '
             {
                 segments.push(OrSegment {
                     joiner: joiner.take(),
@@ -808,11 +825,17 @@ mod tests {
     fn match_ranges_case_insensitive_merged_and_wildcard_skipped() {
         use super::match_ranges;
         // Case-insensitive, all occurrences.
-        assert_eq!(match_ranges("Fix FIX fix", &["fix"]), vec![(0, 3), (4, 7), (8, 11)]);
+        assert_eq!(
+            match_ranges("Fix FIX fix", &["fix"]),
+            vec![(0, 3), (4, 7), (8, 11)]
+        );
         // Overlapping terms merge into one range.
         assert_eq!(match_ranges("abcde", &["abc", "cde"]), vec![(0, 5)]);
         // Wildcard terms don't highlight; empty terms ignored.
-        assert_eq!(match_ranges("abc", &["a*c", ""]), Vec::<(usize, usize)>::new());
+        assert_eq!(
+            match_ranges("abc", &["a*c", ""]),
+            Vec::<(usize, usize)>::new()
+        );
         assert_eq!(match_ranges("", &["x"]), Vec::<(usize, usize)>::new());
     }
 
@@ -830,16 +853,25 @@ mod tests {
         assert_eq!(t.for_message(), vec!["m", "q"]);
         assert_eq!(t.for_hash(), vec!["h", "q"]);
         assert_eq!(t.for_author(), vec!["a", "q"]);
-        assert_eq!(t.for_file(), vec!["src/f.rs"], "quick terms don't apply to files");
+        assert_eq!(
+            t.for_file(),
+            vec!["src/f.rs"],
+            "quick terms don't apply to files"
+        );
         // Date-bounded search marks the day part; quick hits merge in.
         assert_eq!(t.date_ranges("2020-12-25 18:31"), vec![(0, 10)]);
-        let quick_hit = ExecutedTerms { quick: vec!["18:31".into()], ..Default::default() };
+        let quick_hit = ExecutedTerms {
+            quick: vec!["18:31".into()],
+            ..Default::default()
+        };
         assert_eq!(quick_hit.date_ranges("2020-12-25 18:31"), vec![(11, 16)]);
     }
 
     #[test]
     fn input_edit_ops_cover_joiners_and_dates() {
-        use super::input_edit::{backspace, date_backspace, date_input, delete, insert, step_cursor};
+        use super::input_edit::{
+            backspace, date_backspace, date_input, delete, insert, step_cursor,
+        };
         // Cursor hops the whole " OR ".
         assert_eq!(step_cursor("alice OR bob", 9, false), 5);
         assert_eq!(step_cursor("alice OR bob", 5, true), 9);
@@ -847,7 +879,10 @@ mod tests {
         assert_eq!(step_cursor("ab", 2, true), 2, "clamped right");
         // Atomic OR backspace joins texts; plain mode eats one char.
         assert_eq!(backspace("alice OR bob", 9, true), ("alicebob".into(), 5));
-        assert_eq!(backspace("alice OR bob", 9, false), ("alice ORbob".into(), 8));
+        assert_eq!(
+            backspace("alice OR bob", 9, false),
+            ("alice ORbob".into(), 8)
+        );
         assert_eq!(backspace("x", 0, true), ("x".into(), 0), "cursor 0 no-op");
         assert_eq!(delete("abc", 1), ("ac".into(), 1));
         assert_eq!(delete("abc", 3), ("abc".into(), 3), "past end no-op");
@@ -864,20 +899,30 @@ mod tests {
     fn search_query_parse_validates_and_splits() {
         use super::SearchQuery;
         let mut values: [String; 9] = Default::default();
-        assert_eq!(SearchQuery::parse(&values), Err("Enter search text.".into()));
+        assert_eq!(
+            SearchQuery::parse(&values),
+            Err("Enter search text.".into())
+        );
 
         values[SearchField::Message.index()] = "feat OR api endpoints".into();
         values[SearchField::File.index()] = "a.rs, b.rs OR c.rs".into();
         values[SearchField::DateFrom.index()] = "2020-12-25".into();
         let query = SearchQuery::parse(&values).unwrap();
         assert_eq!(query.message, vec!["feat", "api endpoints"]);
-        assert_eq!(query.file_patterns, vec!["a.rs", "b.rs", "c.rs"], "comma AND OR split");
+        assert_eq!(
+            query.file_patterns,
+            vec!["a.rs", "b.rs", "c.rs"],
+            "comma AND OR split"
+        );
         assert_eq!(query.date_start.as_deref(), Some("2020-12-25"));
         assert_eq!(query.date_end, None);
         assert!(query.executed_terms().date_bounded);
 
         values[SearchField::DateTo.index()] = "2020-13-01".into();
-        assert!(SearchQuery::parse(&values).is_err(), "impossible date rejected");
+        assert!(
+            SearchQuery::parse(&values).is_err(),
+            "impossible date rejected"
+        );
     }
 
     #[test]
@@ -930,8 +975,14 @@ mod tests {
     fn file_search_metric_names_cover_modes() {
         use super::FileAction;
         use crate::app::App;
-        assert_eq!(App::file_search_metric(true, FileAction::All), "search.files full+All");
-        assert_eq!(App::file_search_metric(false, FileAction::All), "search.files fast+All");
+        assert_eq!(
+            App::file_search_metric(true, FileAction::All),
+            "search.files full+All"
+        );
+        assert_eq!(
+            App::file_search_metric(false, FileAction::All),
+            "search.files fast+All"
+        );
         assert_eq!(
             App::file_search_metric(true, FileAction::Deleted),
             "search.files full+Deleted"
@@ -956,7 +1007,10 @@ mod tests {
     fn fuzzy_rank_prefers_contiguous_and_shorter() {
         let files = ["src/git/graph_engine.rs", "src/git/graph.rs"];
         let ranked = fuzzy_rank(files.iter().copied(), "graph", 8);
-        assert_eq!(ranked[0].0, "src/git/graph.rs", "shorter contiguous match first");
+        assert_eq!(
+            ranked[0].0, "src/git/graph.rs",
+            "shorter contiguous match first"
+        );
         assert_eq!(ranked.len(), 2);
     }
 
@@ -1126,7 +1180,11 @@ fn date_digits_plausible(digits: &str) -> bool {
 /// Input mask for the date fields: digits only, dashes inserted after YYYY
 /// and MM automatically, capped at 8 digits (YYYY-MM-DD).
 fn format_date_digits(digits: &str) -> String {
-    let digits: String = digits.chars().filter(char::is_ascii_digit).take(8).collect();
+    let digits: String = digits
+        .chars()
+        .filter(char::is_ascii_digit)
+        .take(8)
+        .collect();
     let mut out = String::with_capacity(10);
     for (i, ch) in digits.chars().enumerate() {
         if i == 4 || i == 6 {
@@ -1214,8 +1272,7 @@ impl App {
             SearchField::DateFrom | SearchField::DateTo => Vec::new(),
         };
         self.search.suggestion_page_start = 0;
-        self.search.suggestion_cache =
-            Some((field, query, self.commits.len(), results.clone()));
+        self.search.suggestion_cache = Some((field, query, self.commits.len(), results.clone()));
         results
     }
 
@@ -1257,8 +1314,7 @@ impl App {
                 .map(|handle| handle.join().expect("suggestion worker panicked"))
                 .collect()
         });
-        let mut merged: Vec<(i64, String, Vec<usize>)> =
-            per_chunk.into_iter().flatten().collect();
+        let mut merged: Vec<(i64, String, Vec<usize>)> = per_chunk.into_iter().flatten().collect();
         merged.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         let mut seen = HashSet::new();
         merged
@@ -1374,8 +1430,6 @@ impl App {
         names.dedup();
         names
     }
-
-
 
     /// Apply the first candidate that differs from the current input.
     /// Returns `false` when there was nothing to complete.
@@ -1541,7 +1595,11 @@ impl App {
                 "{} ms (files {} ms, {} history, action {:?})",
                 total_elapsed.as_millis(),
                 elapsed.as_millis(),
-                if self.search.file_full_history { "full" } else { "fast" },
+                if self.search.file_full_history {
+                    "full"
+                } else {
+                    "fast"
+                },
                 self.search.file_action,
             ),
             None => format!("{} ms", total_elapsed.as_millis()),
@@ -1549,8 +1607,9 @@ impl App {
         if self.search.matches.is_empty() {
             // Stay in the popup so the inputs can be adjusted; the status
             // line is hidden behind it, so tell the user right here.
-            self.search.notice =
-                Some(format!("No matches in {timing_suffix}. Adjust the search or Esc to close."));
+            self.search.notice = Some(format!(
+                "No matches in {timing_suffix}. Adjust the search or Esc to close."
+            ));
             if self.search.filter_active {
                 self.search.filter_active = false;
                 self.rebuild_visible();
@@ -1619,7 +1678,11 @@ impl App {
             self.status_message = Some(format!(
                 "Filter: showing {} matched commit{}. f: remove filter.",
                 self.search.matches.len(),
-                if self.search.matches.len() == 1 { "" } else { "s" }
+                if self.search.matches.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                }
             ));
         } else {
             if let Some(idx) = keep_idx {
@@ -1657,7 +1720,11 @@ impl App {
     /// Bottom slots: 3 buttons, plus the full-history checkbox while the
     /// file field has text.
     pub(crate) fn search_button_count(&self) -> usize {
-        if self.search.value(SearchField::File).trim().is_empty() { 4 } else { 6 }
+        if self.search.value(SearchField::File).trim().is_empty() {
+            4
+        } else {
+            6
+        }
     }
 
     /// Move focus through the popup ring: 9 fields then the bottom slots.
@@ -1710,10 +1777,13 @@ impl App {
                     if inside_separator {
                         let parsed = OrSegments::parse(&chars);
                         if let Some(seg_idx) = parsed.segments.iter().position(|seg| {
-                            seg.joiner.as_ref().is_some_and(|j| pos > j.start && pos < j.end)
+                            seg.joiner
+                                .as_ref()
+                                .is_some_and(|j| pos > j.start && pos < j.end)
                         }) {
-                            let text: String =
-                                chars[parsed.segments[seg_idx].text.clone()].iter().collect();
+                            let text: String = chars[parsed.segments[seg_idx].text.clone()]
+                                .iter()
+                                .collect();
                             let mut preview = format!("OR {}", text.trim());
                             if preview.chars().count() > 40 {
                                 preview = preview.chars().take(37).collect::<String>() + "...";
@@ -1882,15 +1952,15 @@ impl App {
             .as_ref()
             .map(|(_, _, _, list)| list.len())
             .unwrap_or(0);
-        self.search.suggestion_page_start = if shown_through >= total { 0 } else { shown_through };
+        self.search.suggestion_page_start = if shown_through >= total {
+            0
+        } else {
+            shown_through
+        };
     }
 
     /// Confirmed removal of an OR segment (the common confirm dialog's yes).
-    pub(crate) fn remove_or_segment_confirmed(
-        &mut self,
-        field_index: usize,
-        segment_index: usize,
-    ) {
+    pub(crate) fn remove_or_segment_confirmed(&mut self, field_index: usize, segment_index: usize) {
         let field = SearchField::ALL[field_index];
         self.search.set_field(field);
         let value = self.search.value(field).to_string();
@@ -2057,12 +2127,18 @@ impl App {
             KeyCode::BackTab | KeyCode::Up => self.search_focus_step(false),
             KeyCode::Down => self.search_focus_step(true),
             KeyCode::Left => {
-                self.search.cursor =
-                    input_edit::step_cursor(self.search.value(self.search.field), self.search.cursor, false);
+                self.search.cursor = input_edit::step_cursor(
+                    self.search.value(self.search.field),
+                    self.search.cursor,
+                    false,
+                );
             }
             KeyCode::Right => {
-                self.search.cursor =
-                    input_edit::step_cursor(self.search.value(self.search.field), self.search.cursor, true);
+                self.search.cursor = input_edit::step_cursor(
+                    self.search.value(self.search.field),
+                    self.search.cursor,
+                    true,
+                );
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.clear_active_search_field();
@@ -2115,8 +2191,7 @@ impl App {
                 if self.search.cursor > 0 {
                     // " OR " deletes atomically: one Backspace removes the
                     // whole separator instead of leaving " OR"/" O" litter.
-                    let atomic_or =
-                        SearchState::multi_value_separator(self.search.field).is_some();
+                    let atomic_or = SearchState::multi_value_separator(self.search.field).is_some();
                     let (next, cursor) = input_edit::backspace(
                         self.search.value(self.search.field),
                         self.search.cursor,
@@ -2143,8 +2218,11 @@ impl App {
                     .modifiers
                     .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
             {
-                let (next, cursor) =
-                    input_edit::insert(self.search.value(self.search.field), self.search.cursor, ch);
+                let (next, cursor) = input_edit::insert(
+                    self.search.value(self.search.field),
+                    self.search.cursor,
+                    ch,
+                );
                 *self.search.value_mut() = next;
                 self.search.cursor = cursor;
                 self.search.reset_backup = None;
@@ -2174,5 +2252,4 @@ mod ops_tests {
         let err = validate_date("2024-13-99").unwrap_err();
         assert!(err.contains("YYYY-MM-DD"), "{err}");
     }
-
 }

@@ -20,7 +20,9 @@ pub fn render_details(
     use crate::ui::helpers::highlight_spans;
     // Marks the parts the executed search hit (yellow) so the user sees WHY
     // this commit matched.
-    let hl = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+    let hl = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
     let marked = |text: &str, terms: &[&str]| -> Vec<Span<'static>> {
         match search_terms {
             Some(_) => highlight_spans(text, Style::default(), hl, &match_ranges(text, terms)),
@@ -42,21 +44,30 @@ pub fn render_details(
             };
             let empty = crate::app::features::search::ExecutedTerms::default();
             let t = search_terms.unwrap_or(&empty);
-            let mut hash_line = vec![Span::styled("Hash:    ", Style::default().fg(Color::Yellow))];
+            let mut hash_line = vec![Span::styled(
+                "Hash:    ",
+                Style::default().fg(Color::Yellow),
+            )];
             hash_line.extend(marked(&c.hash, &t.for_hash()));
-            let mut author_line =
-                vec![Span::styled("Author:  ", Style::default().fg(Color::Yellow))];
+            let mut author_line = vec![Span::styled(
+                "Author:  ",
+                Style::default().fg(Color::Yellow),
+            )];
             author_line.extend(marked(&author_text, &t.for_author()));
-            let mut message_line =
-                vec![Span::styled("Message: ", Style::default().fg(Color::Yellow))];
+            let mut message_line = vec![Span::styled(
+                "Message: ",
+                Style::default().fg(Color::Yellow),
+            )];
             message_line.extend(marked(&c.message, &t.for_message()));
             let mut lines = vec![
                 Line::from(hash_line),
                 Line::from(author_line),
                 {
                     let date_text = c.date_display_text().into_owned();
-                    let mut date_line =
-                        vec![Span::styled("Date:    ", Style::default().fg(Color::Yellow))];
+                    let mut date_line = vec![Span::styled(
+                        "Date:    ",
+                        Style::default().fg(Color::Yellow),
+                    )];
                     match search_terms {
                         Some(terms) => date_line.extend(highlight_spans(
                             &date_text,

@@ -19,7 +19,8 @@ impl App {
             return;
         }
         if !self.drill_stack.is_empty() || self.search.filter_active {
-            self.status_message = Some("Leave the drill view / search filter before moving.".into());
+            self.status_message =
+                Some("Leave the drill view / search filter before moving.".into());
             return;
         }
         let Some(VisibleRow::Commit { idx, .. }) =
@@ -47,7 +48,11 @@ impl App {
         let Some(from) = chain.iter().position(|&i| i == idx) else {
             return;
         };
-        self.move_state = Some(MoveState { chain, from, pos: from });
+        self.move_state = Some(MoveState {
+            chain,
+            from,
+            pos: from,
+        });
         self.nav.push(Mode::Move);
         self.status_message = Some(format!(
             "Moving {} — ↑/↓: move  Enter: apply  Esc: cancel",
@@ -75,8 +80,14 @@ impl App {
     }
 
     fn shift_move(&mut self, down: bool) {
-        let Some(m) = self.move_state.as_mut() else { return };
-        let at_edge = if down { m.pos + 1 >= m.chain.len() } else { m.pos == 0 };
+        let Some(m) = self.move_state.as_mut() else {
+            return;
+        };
+        let at_edge = if down {
+            m.pos + 1 >= m.chain.len()
+        } else {
+            m.pos == 0
+        };
         if at_edge {
             self.status_message = Some(if down {
                 "Cannot move lower: merge commit or start of history below.".into()
@@ -93,7 +104,9 @@ impl App {
 
     /// "a1b2c3d 2 positions up"
     fn move_summary(&self) -> String {
-        let Some(m) = &self.move_state else { return String::new() };
+        let Some(m) = &self.move_state else {
+            return String::new();
+        };
         let n = m.pos.abs_diff(m.from);
         format!(
             "{} {} position{} {}",
@@ -133,7 +146,8 @@ impl App {
         let result = git::move_commit(&self.repo_path, &lowest_hash, &todo);
         self.after_rebase_step(result, "Commit moved.");
         if row.is_some() && !self.visible.is_empty() {
-            self.list_state.select(row.map(|r| r.min(self.visible.len() - 1)));
+            self.list_state
+                .select(row.map(|r| r.min(self.visible.len() - 1)));
         }
     }
 
@@ -152,7 +166,7 @@ impl App {
         }
     }
 
-    fn after_rebase_step(&mut self, result: anyhow::Result<RebaseOutcome>, done: &str) {
+    fn after_rebase_step(&mut self, result: git::Result<RebaseOutcome>, done: &str) {
         match result {
             Ok(RebaseOutcome::Done) => {
                 self.reload_after_rebase();
@@ -167,9 +181,13 @@ impl App {
     }
 
     fn open_move_conflict(&mut self, stopped_at: String) {
-        self.status_message =
-            Some("Rebase in progress — fix conflicts, stage them, then m: continue / abort.".into());
-        self.nav.push(Mode::Confirm(ConfirmAction::MoveConflict { stopped_at }, true));
+        self.status_message = Some(
+            "Rebase in progress — fix conflicts, stage them, then m: continue / abort.".into(),
+        );
+        self.nav.push(Mode::Confirm(
+            ConfirmAction::MoveConflict { stopped_at },
+            true,
+        ));
     }
 
     fn reload_after_rebase(&mut self) {

@@ -293,7 +293,10 @@ fn logs_norm(setting: Option<&LogsSetting>) -> (String, bool, String, bool) {
     (
         logs.path.unwrap_or_else(|| DEFAULT_LOG_PATH.into()),
         logs.enabled.unwrap_or(true),
-        logs.log_level.as_deref().unwrap_or("INFO").to_ascii_uppercase(),
+        logs.log_level
+            .as_deref()
+            .unwrap_or("INFO")
+            .to_ascii_uppercase(),
         logs.log_events.unwrap_or(true),
     )
 }
@@ -333,7 +336,10 @@ struct Json5Scanner<'a> {
 
 impl<'a> Json5Scanner<'a> {
     fn new(text: &'a str, pos: usize) -> Self {
-        Self { bytes: text.as_bytes(), pos }
+        Self {
+            bytes: text.as_bytes(),
+            pos,
+        }
     }
 
     fn cur(&self) -> Option<u8> {
@@ -434,10 +440,9 @@ impl<'a> Json5Scanner<'a> {
             }
             _ => {
                 let start = self.pos;
-                while self
-                    .cur()
-                    .is_some_and(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'$' | b'-' | b'.'))
-                {
+                while self.cur().is_some_and(|b| {
+                    b.is_ascii_alphanumeric() || matches!(b, b'_' | b'$' | b'-' | b'.')
+                }) {
                     self.pos += 1;
                 }
                 (self.pos > start)
@@ -449,7 +454,10 @@ impl<'a> Json5Scanner<'a> {
 
 /// Entries of the object whose `{` sits at `start`:
 /// (key, key_start, value byte range). None = shape not understood.
-fn object_entries(text: &str, start: usize) -> Option<Vec<(String, usize, std::ops::Range<usize>)>> {
+fn object_entries(
+    text: &str,
+    start: usize,
+) -> Option<Vec<(String, usize, std::ops::Range<usize>)>> {
     if text.as_bytes().get(start) != Some(&b'{') {
         return None;
     }
@@ -798,9 +806,17 @@ impl Settings {
             "settings loaded: repo '{}' — global {} (entry: {}), local {}: {}",
             repo_key,
             global_path.display(),
-            if global.repos.contains_key(&repo_key) { "found" } else { "none" },
+            if global.repos.contains_key(&repo_key) {
+                "found"
+            } else {
+                "none"
+            },
             local_path.display(),
-            if local.is_some() { "found" } else { "not found" },
+            if local.is_some() {
+                "found"
+            } else {
+                "not found"
+            },
         );
         let resolved = resolve(&global, &repo_key, local.as_ref());
         Self {
@@ -966,8 +982,7 @@ mod tests {
         assert_eq!(resolved.short_name.as_deref(), Some("r.git")); // repo entry beats defaults
         assert_eq!(resolved.show_details, Some(false)); // overrides beat everything
         // Overrides win over local too — god level.
-        let god: SettingsFile =
-            json5::from_str(r#"{ overrides: { view: "graph" } }"#).unwrap();
+        let god: SettingsFile = json5::from_str(r#"{ overrides: { view: "graph" } }"#).unwrap();
         assert_eq!(
             resolve(&god, "missing", Some(&local)).view.as_deref(),
             Some("graph")
@@ -999,7 +1014,13 @@ mod tests {
         let new_json = "{\n  \"view\": \"graph\",\n  \"show_details\": true\n}";
         let out = splice_repo_entry(COMMENTED, "mine", new_json).unwrap();
         // Comments and the other entry survive byte-for-byte.
-        for kept in ["// stamp comment", "/* god level */", "// keep me", "// other repo comment", "\"other\": { view: \"simple\", origin: \"x{y}\" }"] {
+        for kept in [
+            "// stamp comment",
+            "/* god level */",
+            "// keep me",
+            "// other repo comment",
+            "\"other\": { view: \"simple\", origin: \"x{y}\" }",
+        ] {
             assert!(out.contains(kept), "missing: {kept}");
         }
         // The new value is live and the file still parses.
@@ -1079,13 +1100,19 @@ mod tests {
         // Deviations stay: view differs from built-in.
         let mut deviant = full_entry();
         deviant.view = Some("graph".into());
-        deviant.splits = Some(Splits { list_pct: 55, ..Splits::default() });
+        deviant.splits = Some(Splits {
+            list_pct: 55,
+            ..Splits::default()
+        });
         let kept = strip_inherited(deviant, &RepoSettings::default());
         assert_eq!(kept.view.as_deref(), Some("graph"));
         assert_eq!(kept.splits.unwrap().list_pct, 55);
         // The global `defaults` section shifts the baseline: view "graph"
         // becomes inherited (stripped), built-in "focused" becomes a deviation.
-        let defaults = RepoSettings { view: Some("graph".into()), ..Default::default() };
+        let defaults = RepoSettings {
+            view: Some("graph".into()),
+            ..Default::default()
+        };
         let mut graph_entry = full_entry();
         graph_entry.view = Some("graph".into());
         assert!(strip_inherited(graph_entry, &defaults).view.is_none());
@@ -1096,7 +1123,11 @@ mod tests {
         // Legacy string forms compare semantically: debug "info" == defaults.
         let mut legacy = full_entry();
         legacy.debug = Some(DebugSetting::Level("info".into()));
-        assert!(strip_inherited(legacy, &RepoSettings::default()).debug.is_none());
+        assert!(
+            strip_inherited(legacy, &RepoSettings::default())
+                .debug
+                .is_none()
+        );
     }
 
     #[test]
@@ -1149,8 +1180,12 @@ mod tests {
         // Hash is stable and 8 hex chars.
         assert_eq!(repo_hash("/some/repo"), repo_hash("/some/repo"));
         assert_ne!(repo_hash("/some/repo"), repo_hash("/other/repo"));
-        assert!(repo_hash("/some/repo").len() == 8
-            && repo_hash("/some/repo").chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(
+            repo_hash("/some/repo").len() == 8
+                && repo_hash("/some/repo")
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit())
+        );
     }
 
     #[test]
@@ -1169,17 +1204,31 @@ mod tests {
 
     #[test]
     fn short_name_from_urls() {
-        assert_eq!(short_name_of("git@github.com:ariva/ariva-tools.git"), "ariva-tools.git");
-        assert_eq!(short_name_of("https://github.com/ariva/ariva-tools.git"), "ariva-tools.git");
+        assert_eq!(
+            short_name_of("git@github.com:ariva/ariva-tools.git"),
+            "ariva-tools.git"
+        );
+        assert_eq!(
+            short_name_of("https://github.com/ariva/ariva-tools.git"),
+            "ariva-tools.git"
+        );
         assert_eq!(short_name_of("plain"), "plain");
     }
 
     #[test]
     fn splits_clamp_keeps_panes_usable() {
-        let wild = Splits { list_pct: 1, diff_info_pct: 99, details_height: 0 };
+        let wild = Splits {
+            list_pct: 1,
+            diff_info_pct: 99,
+            details_height: 0,
+        };
         assert_eq!(
             wild.clamped(),
-            Splits { list_pct: 15, diff_info_pct: 85, details_height: 3 }
+            Splits {
+                list_pct: 15,
+                diff_info_pct: 85,
+                details_height: 3
+            }
         );
     }
 }

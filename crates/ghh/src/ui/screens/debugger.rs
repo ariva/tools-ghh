@@ -127,7 +127,11 @@ mod tests {
     use crate::events::models::{AppEvent, EventTime, ScreenId, TraceLevel};
 
     fn trace(level: TraceLevel) -> AppEvent {
-        AppEvent::Trace { level, msg: "m".into(), at: EventTime::now() }
+        AppEvent::Trace {
+            level,
+            msg: "m".into(),
+            at: EventTime::now(),
+        }
     }
 
     /// min INFO: Info/Warn/Error traces show, Trace/Debug hide. App events
@@ -145,11 +149,23 @@ mod tests {
             screen: ScreenId::CommitList,
             at: EventTime::now(),
         };
-        assert!(event_visible(&key, TraceLevel::Error, true), "level never hides events");
-        assert!(!event_visible(&key, TraceLevel::Trace, false), "switch hides events");
-        assert!(event_visible(&trace(TraceLevel::Error), min, false), "switch spares traces");
+        assert!(
+            event_visible(&key, TraceLevel::Error, true),
+            "level never hides events"
+        );
+        assert!(
+            !event_visible(&key, TraceLevel::Trace, false),
+            "switch hides events"
+        );
+        assert!(
+            event_visible(&trace(TraceLevel::Error), min, false),
+            "switch spares traces"
+        );
         for level in [TraceLevel::Trace, TraceLevel::Debug, TraceLevel::Error] {
-            assert!(event_visible(&trace(level), TraceLevel::Trace, true), "default shows all");
+            assert!(
+                event_visible(&trace(level), TraceLevel::Trace, true),
+                "default shows all"
+            );
         }
     }
 }

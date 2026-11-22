@@ -112,7 +112,12 @@ pub fn render_text_input(frame: &mut Frame, area: Rect, input: &TextInput) {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             )),
-            Rect { x: area.x + x, y, width: 3, height: 1 },
+            Rect {
+                x: area.x + x,
+                y,
+                width: 3,
+                height: 1,
+            },
         );
     };
     if let Some(x) = layout.left_more_x {
@@ -129,7 +134,12 @@ pub fn render_text_input(frame: &mut Frame, area: Rect, input: &TextInput) {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             )),
-            Rect { x: area.x + x, y, width: OR_BUTTON_WIDTH, height: 1 },
+            Rect {
+                x: area.x + x,
+                y,
+                width: OR_BUTTON_WIDTH,
+                height: 1,
+            },
         );
     }
     if let Some(x) = layout.clear_x {
@@ -140,7 +150,12 @@ pub fn render_text_input(frame: &mut Frame, area: Rect, input: &TextInput) {
                     .fg(Color::LightRed)
                     .add_modifier(Modifier::BOLD),
             )),
-            Rect { x: area.x + x, y, width: CLEAR_MARK_WIDTH, height: 1 },
+            Rect {
+                x: area.x + x,
+                y,
+                width: CLEAR_MARK_WIDTH,
+                height: 1,
+            },
         );
     }
 }

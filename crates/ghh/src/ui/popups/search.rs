@@ -22,18 +22,12 @@ pub(crate) fn hint_for(field: SearchField) -> &'static str {
         SearchField::Hash => {
             "Ctrl+U: clear field. Substring of full/short hash. ' OR ' joins alternatives."
         }
-        SearchField::Message => {
-            "Ctrl+U: clear field. Substring. ' OR ' joins. * ? wildcards."
-        }
+        SearchField::Message => "Ctrl+U: clear field. Substring. ' OR ' joins. * ? wildcards.",
         SearchField::Author => {
             "Ctrl+U: clear field. Author name substring. ' OR ' joins alternatives."
         }
-        SearchField::File => {
-            "Ctrl+U: clear field. Fuzzy terms. Comma or ' OR ' = any pattern."
-        }
-        SearchField::Branch => {
-            "Ctrl+U: clear field. Branch ref name. ' OR ' joins alternatives."
-        }
+        SearchField::File => "Ctrl+U: clear field. Fuzzy terms. Comma or ' OR ' = any pattern.",
+        SearchField::Branch => "Ctrl+U: clear field. Branch ref name. ' OR ' joins alternatives.",
         SearchField::Tag => "Ctrl+U: clear field. Tag ref name. ' OR ' joins alternatives.",
     }
 }
@@ -69,7 +63,9 @@ pub fn render_search_popup(frame: &mut Frame, app: &mut App, area: Rect) {
 /// Label style shared by the field rows and the date row.
 fn label_style(app: &App, active_for: &[SearchField]) -> Style {
     if active_for.contains(&app.search.field) {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Gray)
     }
@@ -78,7 +74,9 @@ fn label_style(app: &App, active_for: &[SearchField]) -> Style {
 fn clear_button_span() -> Span<'static> {
     Span::styled(
         "[ clear ]",
-        Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::LightRed)
+            .add_modifier(Modifier::BOLD),
     )
 }
 
@@ -90,18 +88,28 @@ fn render_field_rows(frame: &mut Frame, app: &mut App, inner: Rect) {
         let visual_row = crate::app::layout::visual_row_of(field);
         let y = inner.y + visual_row;
         let active = field == app.search.field;
-        let multi = crate::app::features::search::SearchState::multi_value_separator(field)
-            .is_some();
+        let multi =
+            crate::app::features::search::SearchState::multi_value_separator(field).is_some();
         frame.render_widget(
             Paragraph::new(Span::styled(
                 format!("{:>14}: ", field.label()),
                 label_style(app, &[field]),
             )),
-            Rect { x: inner.x, y, width: 16.min(inner.width), height: 1 },
+            Rect {
+                x: inner.x,
+                y,
+                width: 16.min(inner.width),
+                height: 1,
+            },
         );
         render_text_input(
             frame,
-            Rect { x: inner.x, y, width: inner.width, height: 1 },
+            Rect {
+                x: inner.x,
+                y,
+                width: inner.width,
+                height: 1,
+            },
             &TextInput {
                 value: app.search.value(field),
                 placeholder: "",
@@ -109,9 +117,7 @@ fn render_field_rows(frame: &mut Frame, app: &mut App, inner: Rect) {
                 cursor: app.search.cursor,
                 select_all: app.search.select_all,
                 color_or_separators: multi,
-                show_or_button: multi
-                    && active
-                    && !app.search.active_prefix().trim().is_empty(),
+                show_or_button: multi && active && !app.search.active_prefix().trim().is_empty(),
                 show_clear_button: true,
                 label_width: 16,
             },
@@ -129,7 +135,12 @@ fn render_date_row(frame: &mut Frame, app: &mut App, inner: Rect) {
                 format!("{:>14}: ", "Date"),
                 label_style(app, &[SearchField::DateFrom, SearchField::DateTo]),
             )),
-            Rect { x: inner.x, y, width: 16.min(inner.width), height: 1 },
+            Rect {
+                x: inner.x,
+                y,
+                width: 16.min(inner.width),
+                height: 1,
+            },
         );
         render_text_input(
             frame,
@@ -154,7 +165,12 @@ fn render_date_row(frame: &mut Frame, app: &mut App, inner: Rect) {
         if DATE_SEP_X + 2 <= inner.width {
             frame.render_widget(
                 Paragraph::new(Span::styled("-", Style::default().fg(Color::Gray))),
-                Rect { x: inner.x + DATE_SEP_X + 1, y, width: 1, height: 1 },
+                Rect {
+                    x: inner.x + DATE_SEP_X + 1,
+                    y,
+                    width: 1,
+                    height: 1,
+                },
             );
         }
         render_text_input(
@@ -289,7 +305,12 @@ fn render_suggestions_block(frame: &mut Frame, app: &mut App, inner: Rect) {
 /// slot 5, click an option or Enter/Space cycles) and the full-history
 /// checkbox (ring slot 4) on the next row.
 fn render_file_options(frame: &mut Frame, app: &mut App, inner: Rect) {
-    if !app.search.value(crate::app::SearchField::File).trim().is_empty() {
+    if !app
+        .search
+        .value(crate::app::SearchField::File)
+        .trim()
+        .is_empty()
+    {
         use crate::app::features::search::FileAction;
         use crate::app::layout::{FILE_ACTION_LABELS, file_action_zones};
         let action_focused = app.search.button_focus == Some(5);
@@ -304,7 +325,10 @@ fn render_file_options(frame: &mut Frame, app: &mut App, inner: Rect) {
             )),
             Rect {
                 x: inner.x,
-                y: inner.y + crate::app::layout::VISUAL_ROWS + crate::app::layout::SUGGESTION_LINES + 2,
+                y: inner.y
+                    + crate::app::layout::VISUAL_ROWS
+                    + crate::app::layout::SUGGESTION_LINES
+                    + 2,
                 width: 16.min(inner.width),
                 height: 1,
             },
@@ -319,9 +343,14 @@ fn render_file_options(frame: &mut Frame, app: &mut App, inner: Rect) {
                 format!(" {} ", FILE_ACTION_LABELS[i])
             };
             let style = if i == selected && action_focused {
-                Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else if i == selected {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::Gray)
             };
@@ -339,29 +368,44 @@ fn render_file_options(frame: &mut Frame, app: &mut App, inner: Rect) {
             );
         }
         let focused = app.search.button_focus == Some(4);
-        let mark = if app.search.file_full_history { "x" } else { " " };
-        let box_style = if focused {
-            Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)
+        let mark = if app.search.file_full_history {
+            "x"
         } else {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            " "
+        };
+        let box_style = if focused {
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         };
         frame.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(format!("[{mark}] "), box_style),
                 Span::styled(
                     crate::app::layout::FULL_HISTORY_LABEL,
-                    if focused { box_style } else { Style::default().fg(Color::Gray) },
+                    if focused {
+                        box_style
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
                 ),
             ])),
             Rect {
                 x: inner.x,
-                y: inner.y + crate::app::layout::VISUAL_ROWS + crate::app::layout::SUGGESTION_LINES + 3,
+                y: inner.y
+                    + crate::app::layout::VISUAL_ROWS
+                    + crate::app::layout::SUGGESTION_LINES
+                    + 3,
                 width: inner.width,
                 height: 1,
             },
         );
     }
-
 }
 
 /// Bottom block: buttons row, the field-specific hint line (hidden while the
@@ -402,7 +446,10 @@ fn render_footer(frame: &mut Frame, app: &mut App, inner: Rect) {
         "Reset"
     };
     let mut spans: Vec<Span> = Vec::new();
-    for (i, label) in ["Search", "Cancel", reset_label, "Help"].into_iter().enumerate() {
+    for (i, label) in ["Search", "Cancel", reset_label, "Help"]
+        .into_iter()
+        .enumerate()
+    {
         let focused = app.search.button_focus == Some(i);
         // Enter in any field runs Search, so it stays visually the default.
         let is_default = i == 0 && app.search.button_focus.is_none();
@@ -444,7 +491,7 @@ mod tests {
     fn popup_survives_tiny_terminals() {
         let dir = std::env::temp_dir().join(format!("ghh-popup-tiny-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         app.nav.push(crate::app::models::Mode::Search);
         *app.search.value_mut() = "hello".into();
         for (w, h) in [(1, 1), (10, 5), (39, 15), (40, 3)] {
@@ -464,7 +511,7 @@ mod tests {
     fn full_history_checkbox_renders_with_file_value() {
         let dir = std::env::temp_dir().join(format!("ghh-popup-fullhist-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         app.nav.push(crate::app::models::Mode::Search);
         let render_text = |app: &mut crate::app::App| {
             let backend = TestBackend::new(120, 30);
@@ -508,7 +555,7 @@ mod tests {
         use crate::app::layout::{SearchPopupHit, search_popup_hit_in, search_popup_rect_in};
         let dir = std::env::temp_dir().join(format!("ghh-popup-drift-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         app.nav.push(crate::app::models::Mode::Search);
         app.search.set_field(crate::app::SearchField::DateFrom);
         *app.search.value_mut() = "2020-12-25".into();
@@ -524,7 +571,11 @@ mod tests {
             .unwrap();
         let buffer = terminal.backend().buffer().clone();
         let rows: Vec<String> = (0..30)
-            .map(|y| (0..100).map(|x| buffer[(x, y)].symbol().to_string()).collect())
+            .map(|y| {
+                (0..100)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect()
+            })
             .collect();
         let find = |needle: &str| -> (u16, u16) {
             // Cell-accurate: byte offsets drift on multibyte border chars.
@@ -557,33 +608,63 @@ mod tests {
         };
 
         let (x, y) = find("[ Search ]");
-        assert_eq!(hit(x + 1, y), Some(SearchPopupHit::Button(0)), "Search button");
+        assert_eq!(
+            hit(x + 1, y),
+            Some(SearchPopupHit::Button(0)),
+            "Search button"
+        );
         let (x, y) = find("[ Cancel ]");
-        assert_eq!(hit(x + 1, y), Some(SearchPopupHit::Button(1)), "Cancel button");
+        assert_eq!(
+            hit(x + 1, y),
+            Some(SearchPopupHit::Button(1)),
+            "Cancel button"
+        );
         let (x, y) = find("[ Help ]");
-        assert_eq!(hit(x + 1, y), Some(SearchPopupHit::Button(3)), "Help button");
+        assert_eq!(
+            hit(x + 1, y),
+            Some(SearchPopupHit::Button(3)),
+            "Help button"
+        );
         let (x, y) = find("[x] Full history");
-        assert_eq!(hit(x + 1, y), Some(SearchPopupHit::FullHistoryToggle), "checkbox");
+        assert_eq!(
+            hit(x + 1, y),
+            Some(SearchPopupHit::FullHistoryToggle),
+            "checkbox"
+        );
         let (x, y) = find("(All)");
-        assert_eq!(hit(x + 1, y), Some(SearchPopupHit::FileAction(0)), "action All");
+        assert_eq!(
+            hit(x + 1, y),
+            Some(SearchPopupHit::FileAction(0)),
+            "action All"
+        );
         let (x, y) = find(" Deleted "); // unique to the action row
-        assert_eq!(hit(x + 2, y), Some(SearchPopupHit::FileAction(3)), "action Deleted");
+        assert_eq!(
+            hit(x + 2, y),
+            Some(SearchPopupHit::FileAction(3)),
+            "action Deleted"
+        );
         let (x, y) = find("Quick search:");
         assert_eq!(
             hit(x + 15, y),
-            Some(SearchPopupHit::Field(crate::app::SearchField::Quick.index())),
+            Some(SearchPopupHit::Field(
+                crate::app::SearchField::Quick.index()
+            )),
             "quick field row"
         );
         let (x, y) = find("2020-12-25");
         assert_eq!(
             hit(x + 2, y),
-            Some(SearchPopupHit::Field(crate::app::SearchField::DateFrom.index())),
+            Some(SearchPopupHit::Field(
+                crate::app::SearchField::DateFrom.index()
+            )),
             "date from value"
         );
         let (x, y) = find("[ clear ]"); // first match: the date row's clear
         assert_eq!(
             hit(x + 1, y),
-            Some(SearchPopupHit::ClearField(crate::app::SearchField::DateFrom.index())),
+            Some(SearchPopupHit::ClearField(
+                crate::app::SearchField::DateFrom.index()
+            )),
             "date clear"
         );
     }
@@ -595,28 +676,41 @@ mod tests {
         use super::hint_for;
         let cases = [
             (crate::app::SearchField::Quick, "Hash/message/author/date"),
-            (crate::app::SearchField::Hash, "Substring of full/short hash"),
+            (
+                crate::app::SearchField::Hash,
+                "Substring of full/short hash",
+            ),
             (crate::app::SearchField::Message, "Substring. ' OR ' joins"),
             (crate::app::SearchField::Author, "Author name substring"),
             (crate::app::SearchField::DateFrom, "Date format: YYYY-MM-DD"),
             (crate::app::SearchField::DateTo, "Date format: YYYY-MM-DD"),
-            (crate::app::SearchField::File, "Comma or ' OR ' = any pattern"),
+            (
+                crate::app::SearchField::File,
+                "Comma or ' OR ' = any pattern",
+            ),
             (crate::app::SearchField::Branch, "Branch ref name"),
             (crate::app::SearchField::Tag, "Tag ref name"),
         ];
         for (field, expected) in cases {
             let hint = hint_for(field);
-            assert!(hint.contains(expected), "{field:?}: {expected:?} not in {hint:?}");
+            assert!(
+                hint.contains(expected),
+                "{field:?}: {expected:?} not in {hint:?}"
+            );
         }
         // Only File may claim comma semantics.
         for field in crate::app::SearchField::ALL {
             let claims_comma = hint_for(field).to_lowercase().contains("comma");
-            assert_eq!(claims_comma, field == crate::app::SearchField::File, "{field:?}");
+            assert_eq!(
+                claims_comma,
+                field == crate::app::SearchField::File,
+                "{field:?}"
+            );
         }
 
         let dir = std::env::temp_dir().join(format!("ghh-popup-hints-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         app.nav.push(crate::app::models::Mode::Search);
         app.search.set_field(crate::app::SearchField::Tag);
         let render_text = |app: &mut crate::app::App| {
@@ -627,11 +721,18 @@ mod tests {
                 .unwrap();
             let buffer = terminal.backend().buffer().clone();
             (0..30)
-                .map(|y| (0..120).map(|x| buffer[(x, y)].symbol().to_string()).collect::<String>())
+                .map(|y| {
+                    (0..120)
+                        .map(|x| buffer[(x, y)].symbol().to_string())
+                        .collect::<String>()
+                })
                 .collect::<Vec<_>>()
                 .join("\n")
         };
-        assert!(render_text(&mut app).contains("Tag ref name"), "hint wired into render");
+        assert!(
+            render_text(&mut app).contains("Tag ref name"),
+            "hint wired into render"
+        );
         app.search.button_focus = Some(0);
         assert!(
             !render_text(&mut app).contains("Ctrl+U: clear field"),
@@ -644,7 +745,7 @@ mod tests {
     fn popup_renders_clear_mark_and_notice() {
         let dir = std::env::temp_dir().join(format!("ghh-popup-render-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         app.nav.push(crate::app::models::Mode::Search);
         *app.search.value_mut() = "hello".into();
         app.search.notice = Some("No matches. Adjust the search.".into());
@@ -669,8 +770,14 @@ mod tests {
             .lines()
             .find(|l| l.contains("Date:"))
             .expect("date row missing");
-        assert!(date_row.contains("START"), "from placeholder missing: {date_row}");
-        assert!(date_row.contains("END"), "to placeholder missing: {date_row}");
+        assert!(
+            date_row.contains("START"),
+            "from placeholder missing: {date_row}"
+        );
+        assert!(
+            date_row.contains("END"),
+            "to placeholder missing: {date_row}"
+        );
         assert!(date_row.contains(" - "), "separator missing: {date_row}");
         assert!(all.contains("No matches"), "notice missing:\n{all}");
         assert!(all.contains("[ Search ]"), "buttons missing:\n{all}");
@@ -678,6 +785,9 @@ mod tests {
         let rows: Vec<&str> = all.lines().collect();
         let notice_row = rows.iter().position(|r| r.contains("No matches")).unwrap();
         let buttons_row = rows.iter().position(|r| r.contains("[ Search ]")).unwrap();
-        assert!(notice_row > buttons_row, "notice must sit under the buttons");
+        assert!(
+            notice_row > buttons_row,
+            "notice must sit under the buttons"
+        );
     }
 }

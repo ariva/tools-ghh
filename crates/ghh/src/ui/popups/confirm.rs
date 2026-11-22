@@ -106,8 +106,7 @@ mod tests {
             }
             panic!("{needle:?} not drawn");
         };
-        let popup =
-            crate::app::layout::confirm_popup_rect_in(action.is_dangerous(), area);
+        let popup = crate::app::layout::confirm_popup_rect_in(action.is_dangerous(), area);
         // Same math as App::confirm_popup_button_rects.
         let button_y = popup.y
             + action.prompt_lines().len() as u16

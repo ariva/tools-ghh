@@ -23,9 +23,15 @@ pub fn render_stash(frame: &mut Frame, app: &mut App) {
     frame.render_widget(title, chunks[0]);
     super::details::render_status(frame, app, chunks[3]);
 
-    let Some(stash) = app.stash.as_mut() else { return };
+    let Some(stash) = app.stash.as_mut() else {
+        return;
+    };
     let border = |focused: bool| {
-        Style::default().fg(if focused { Color::Yellow } else { Color::DarkGray })
+        Style::default().fg(if focused {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        })
     };
 
     let message_width = usize::from(list_rect.width).saturating_sub(34);
@@ -34,7 +40,10 @@ pub fn render_stash(frame: &mut Frame, app: &mut App) {
         .iter()
         .map(|e| {
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{:<10} ", e.name), Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    format!("{:<10} ", e.name),
+                    Style::default().fg(Color::Yellow),
+                ),
                 Span::styled(format!("{} ", e.date), Style::default().fg(Color::Cyan)),
                 Span::raw(truncate(&e.message, message_width)),
             ]))
@@ -52,21 +61,33 @@ pub fn render_stash(frame: &mut Frame, app: &mut App) {
     frame.render_stateful_widget(list, list_rect, &mut stash.list_state);
 
     let meta = scroll_label(stash.diff_scroll, stash.diff_lines.len(), diff_rect.height);
-    let diff = Paragraph::new(render_diff_window(&stash.diff_lines, stash.diff_scroll, diff_rect.height))
-        .block(
-            Block::default()
-                .title(format!(" Changes [{meta}] "))
-                .borders(Borders::ALL)
-                .border_style(border(stash.diff_focused)),
-        );
+    let diff = Paragraph::new(render_diff_window(
+        &stash.diff_lines,
+        stash.diff_scroll,
+        diff_rect.height,
+    ))
+    .block(
+        Block::default()
+            .title(format!(" Changes [{meta}] "))
+            .borders(Borders::ALL)
+            .border_style(border(stash.diff_focused)),
+    );
     frame.render_widget(diff, diff_rect);
 
     let label = |text: &'static str| Span::styled(text, Style::default().fg(Color::DarkGray));
     let mut lines: Vec<Line<'static>> = Vec::new();
     if let Some(e) = stash.selected() {
         lines.push(Line::from(vec![
-            Span::styled(e.name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("  {}", &e.hash[..7.min(e.hash.len())]), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                e.name.clone(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("  {}", &e.hash[..7.min(e.hash.len())]),
+                Style::default().fg(Color::Yellow),
+            ),
             label("   base: "),
             Span::raw(e.base.clone()),
             label("   date: "),
@@ -74,7 +95,10 @@ pub fn render_stash(frame: &mut Frame, app: &mut App) {
             label("   author: "),
             Span::styled(e.author.clone(), Style::default().fg(Color::Green)),
         ]));
-        lines.push(Line::from(vec![label("Message: "), Span::raw(e.message.clone())]));
+        lines.push(Line::from(vec![
+            label("Message: "),
+            Span::raw(e.message.clone()),
+        ]));
         lines.extend(stash.stat_lines.iter().map(|l| Line::raw(l.clone())));
     } else {
         lines.push(Line::styled(
@@ -104,7 +128,7 @@ mod tests {
     fn stash_screen_draws_panes_and_guards_drop() {
         let dir = std::env::temp_dir().join(format!("ghh-stash-render-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         let entry = |n: usize, message: &str| crate::git::StashEntry {
             name: format!("stash@{{{n}}}"),
             hash: format!("{n:040x}"),
@@ -116,20 +140,32 @@ mod tests {
         let mut list_state = ratatui::widgets::ListState::default();
         list_state.select(Some(0));
         app.stash = Some(StashState {
-            entries: vec![entry(0, "On main: fix auth"), entry(1, "WIP on main: older")],
+            entries: vec![
+                entry(0, "On main: fix auth"),
+                entry(1, "WIP on main: older"),
+            ],
             list_state,
             diff_lines: vec!["+added line".into(), "-removed line".into()],
             diff_scroll: 0,
-            stat_lines: vec!["1 file changed, 1 insertion(+)".into(), "a.rs | 2 +-".into()],
+            stat_lines: vec![
+                "1 file changed, 1 insertion(+)".into(),
+                "a.rs | 2 +-".into(),
+            ],
             diff_focused: false,
         });
         app.nav.push(Mode::Stash);
 
         let screen = |app: &mut crate::app::App| {
             let mut terminal = Terminal::new(TestBackend::new(160, 30)).unwrap();
-            terminal.draw(|frame| crate::ui::render(frame, app)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, app))
+                .unwrap();
             let buffer = terminal.backend().buffer().clone();
-            buffer.content().iter().map(|cell| cell.symbol()).collect::<String>()
+            buffer
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>()
         };
         let text = screen(&mut app);
         for needle in [
@@ -154,10 +190,16 @@ mod tests {
         assert_eq!(app.stash.as_ref().unwrap().list_state.selected(), Some(0));
 
         app.handle_key(key(KeyCode::Char('d')));
-        assert!(matches!(app.mode(), Mode::Confirm(ConfirmAction::StashDrop { .. }, false)));
+        assert!(matches!(
+            app.mode(),
+            Mode::Confirm(ConfirmAction::StashDrop { .. }, false)
+        ));
         let popup = screen(&mut app);
         assert!(popup.contains("DANGER") && popup.contains("Drop stash@{0}?"));
-        assert!(popup.contains("STASHES"), "stash screen stays under the popup");
+        assert!(
+            popup.contains("STASHES"),
+            "stash screen stays under the popup"
+        );
         app.handle_key(key(KeyCode::Enter)); // default No
         assert!(matches!(app.mode(), Mode::Stash));
         assert_eq!(app.stash.as_ref().unwrap().entries.len(), 2);

@@ -36,12 +36,9 @@ fn render_text_selection(frame: &mut Frame, app: &mut App) {
     }
     if selection.expand_next_word {
         let row = selection.end_row;
-        if let Some(end) = crate::ui::helpers::next_word_end(
-            buffer,
-            panel_end_column,
-            row,
-            selection.end_column,
-        ) {
+        if let Some(end) =
+            crate::ui::helpers::next_word_end(buffer, panel_end_column, row, selection.end_column)
+        {
             selection.end_column = end;
             selection.end_row = row;
         }
@@ -178,7 +175,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let under_stash = matches!(
         &app.mode(),
         Mode::Stash
-            | Mode::Confirm(ConfirmAction::StashPop { .. } | ConfirmAction::StashDrop { .. }, _)
+            | Mode::Confirm(
+                ConfirmAction::StashPop { .. } | ConfirmAction::StashDrop { .. },
+                _
+            )
     );
 
     if under_stash {

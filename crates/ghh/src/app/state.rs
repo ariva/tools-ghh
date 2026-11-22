@@ -2,24 +2,23 @@
 //! cross-cutting helpers every screen uses. Behaviour lives in the sibling
 //! modules (`input`, `mouse`, `layout`, `commit_list`, `history_load`, …).
 
+use crate::app::editor::MultilineEditor;
 use crate::app::features::commit_list::DrillFrame;
 use crate::app::features::edit::EditState;
-use crate::app::editor::MultilineEditor;
 use crate::app::features::history_load::{
     CommitGraphWarmupResult, HistoryCountResult, InitialHistoryResult, spawn_initial_history_loader,
 };
+use crate::app::features::search::SearchState;
+use crate::app::features::squash::SquashMessageState;
+use crate::app::features::staging::StagingState;
 use crate::app::models::{
     CommitDiffFile, CommitListFocus, CommitListView, ConfirmAction, ContextMenuState, Mode,
     ResizeTarget, SquashState, TextSelection, VisibleRow,
 };
-use crate::settings::{RepoSettings, Settings, Splits};
 use crate::app::nav::Navigator;
-use crate::app::features::search::SearchState;
-use crate::app::features::squash::SquashMessageState;
-use crate::app::features::staging::StagingState;
 use crate::events::{EventBus, ScreenId, TraceLevel};
 use crate::git;
-use anyhow::Result;
+use crate::settings::{RepoSettings, Settings, Splits};
 use arboard::Clipboard;
 use ratatui::widgets::ListState;
 use std::collections::{HashMap, HashSet};
@@ -122,7 +121,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(repo_path: PathBuf, yes: bool) -> Result<Self> {
+    pub fn new(repo_path: PathBuf, yes: bool) -> Self {
         // History loads in the background; the UI starts empty and fills in
         // as batches arrive (see `history_load`).
         let commit_sort = git::CommitSort::default();
@@ -211,7 +210,7 @@ impl App {
         };
         app.status_message = Some("Loading initial history...".into());
         app.schedule_selected_stats_load();
-        Ok(app)
+        app
     }
 
     /// The active mode (top of the navigation stack).

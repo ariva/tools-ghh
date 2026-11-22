@@ -10,7 +10,7 @@ license = "MIT"
 repository = "https://github.com/ariva/tools-ghh"
 
 [workspace.dependencies]
-anyhow = "1"
+thiserror = "2"
 arboard = "3"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }

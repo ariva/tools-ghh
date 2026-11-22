@@ -116,10 +116,7 @@ impl App {
                 ))) => {
                     self.record_history_load_timings("full", load_duration, timings);
                     self.push_perf_metric("startup.history.total_worker", total_load_duration);
-                    self.apply_progressive_commits(
-                        commits,
-                        "startup.history.chunk.full.ui_apply",
-                    );
+                    self.apply_progressive_commits(commits, "startup.history.chunk.full.ui_apply");
                     // Seed the rank table so the first Focused draw skips the
                     // O(n) TreeLayout::build; lane prefixes fill lazily per
                     // viewport batch.
@@ -443,7 +440,7 @@ mod tests {
     fn progressive_batch_preserves_drill_scope() {
         let dir = std::env::temp_dir().join(format!("ghh-drill-batch-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = App::new(dir, true).unwrap();
+        let mut app = App::new(dir, true);
         app.initial_history_loader_rx = None;
 
         app.apply_progressive_commits(merge_chain(), "test.apply");
@@ -460,7 +457,10 @@ mod tests {
         extended.push(commit(6, vec![]));
         app.apply_progressive_commits(extended, "test.apply");
 
-        assert!(!app.drill_stack.is_empty(), "drill state lost on batch apply");
+        assert!(
+            !app.drill_stack.is_empty(),
+            "drill state lost on batch apply"
+        );
         assert_eq!(
             app.visible.len(),
             scoped_rows,
@@ -475,7 +475,7 @@ mod tests {
     fn drill_back_restores_selection_and_scroll_offset() {
         let dir = std::env::temp_dir().join(format!("ghh-drill-offset-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = App::new(dir, true).unwrap();
+        let mut app = App::new(dir, true);
         app.initial_history_loader_rx = None;
         app.apply_progressive_commits(merge_chain(), "test.apply");
 
@@ -488,7 +488,11 @@ mod tests {
         *app.list_state.offset_mut() = 3;
 
         app.drill_back();
-        assert_eq!(app.list_state.selected(), Some(1), "cursor must be restored");
+        assert_eq!(
+            app.list_state.selected(),
+            Some(1),
+            "cursor must be restored"
+        );
         assert_eq!(app.list_state.offset(), 1, "scroll offset must be restored");
     }
 
@@ -515,7 +519,7 @@ mod tests {
     fn test_app_with(commits: Vec<git::CommitInfo>, name: &str) -> App {
         let dir = std::env::temp_dir().join(format!("ghh-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = App::new(dir, true).unwrap();
+        let mut app = App::new(dir, true);
         app.initial_history_loader_rx = None;
         app.history_loading = false; // merge_point_of is gated on full load
         app.apply_progressive_commits(commits, "test.apply");
@@ -580,7 +584,10 @@ mod tests {
             "must drill into the mainline merge"
         );
         assert!(
-            matches!(app.visible.first(), Some(VisibleRow::DrillHeader { idx: 1, .. })),
+            matches!(
+                app.visible.first(),
+                Some(VisibleRow::DrillHeader { idx: 1, .. })
+            ),
             "merge commit pinned as the first row"
         );
         let selected_row = app.list_state.selected().unwrap();
@@ -597,7 +604,12 @@ mod tests {
         app.select_commit_idx(4);
         app.drill_into_merge_of_selected();
         assert!(app.drill_stack.is_empty());
-        assert!(app.status_message.as_deref().unwrap_or("").contains("mainline"));
+        assert!(
+            app.status_message
+                .as_deref()
+                .unwrap_or("")
+                .contains("mainline")
+        );
     }
 
     /// m in the flat view: selection lands on the merge row.
@@ -626,7 +638,11 @@ mod tests {
         app.list_state.select(Some(inner_row));
         app.jump_to_merge_point();
         assert!(!app.drill_stack.is_empty(), "should stay drilled");
-        assert_eq!(app.list_state.selected(), Some(0), "DrillHeader row selected");
+        assert_eq!(
+            app.list_state.selected(),
+            Some(0),
+            "DrillHeader row selected"
+        );
     }
 
     /// m while drilled into a sub-merge whose PR merge lives outside the
@@ -645,7 +661,11 @@ mod tests {
         app.list_state.select(Some(inner_row));
         app.jump_to_merge_point();
         assert!(app.drill_stack.is_empty(), "drill should be exited");
-        assert_eq!(app.list_state.selected(), Some(1), "merge row selected in flat view");
+        assert_eq!(
+            app.list_state.selected(),
+            Some(1),
+            "merge row selected in flat view"
+        );
     }
 
     /// m in a filtered view that hides the merge: filter dropped, merge selected.
@@ -669,7 +689,12 @@ mod tests {
         app.select_commit_idx(4);
         app.jump_to_merge_point();
         assert_eq!(app.list_state.selected(), Some(4), "selection unchanged");
-        assert!(app.status_message.as_deref().unwrap_or("").contains("mainline"));
+        assert!(
+            app.status_message
+                .as_deref()
+                .unwrap_or("")
+                .contains("mainline")
+        );
     }
 
     /// Tag search matches the commits tags POINT AT — n/p hops tag to tag
@@ -687,11 +712,16 @@ mod tests {
                 is_head: false,
             }],
         );
-        app.search.set_field(crate::app::features::search::SearchField::Tag);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Tag);
         *app.search.value_mut() = "v1".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
-        assert_eq!(app.search.matches, vec![3], "only the tagged commit matches");
+        assert_eq!(
+            app.search.matches,
+            vec![3],
+            "only the tagged commit matches"
+        );
         // Filter shows just that commit (plus nothing else).
         app.toggle_search_filter();
         assert!(app.search.filter_active);
@@ -715,7 +745,8 @@ mod tests {
                 is_head: false,
             }],
         );
-        app.search.set_field(crate::app::features::search::SearchField::Branch);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Branch);
         *app.search.value_mut() = "feature".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
@@ -727,7 +758,8 @@ mod tests {
     #[test]
     fn empty_search_result_keeps_popup_open() {
         let mut app = test_app_with(nested_merge_chain(), "no-match-popup");
-        app.search.set_field(crate::app::features::search::SearchField::Message);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Message);
         *app.search.value_mut() = "zzz-no-such-commit".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
@@ -744,7 +776,8 @@ mod tests {
         ));
         assert!(app.search.notice.is_none());
         *app.search.value_mut() = String::new(); // clear the message query
-        app.search.set_field(crate::app::features::search::SearchField::Hash);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Hash);
         *app.search.value_mut() = "hash1".into();
         app.execute_search();
         assert!(!matches!(app.mode(), crate::app::models::Mode::Search));
@@ -755,14 +788,19 @@ mod tests {
     fn ctrl_u_clears_active_search_field() {
         let mut app = test_app_with(nested_merge_chain(), "ctrl-u");
         app.nav.push(crate::app::models::Mode::Search);
-        app.search.set_field(crate::app::features::search::SearchField::Quick);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Quick);
         *app.search.value_mut() = "something".into();
         app.search.cursor = 4;
         app.handle_search(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Char('u'),
             crossterm::event::KeyModifiers::CONTROL,
         ));
-        assert!(app.search.value(crate::app::features::search::SearchField::Quick).is_empty());
+        assert!(
+            app.search
+                .value(crate::app::features::search::SearchField::Quick)
+                .is_empty()
+        );
         assert_eq!(app.search.cursor, 0);
     }
 
@@ -771,11 +809,13 @@ mod tests {
     #[test]
     fn cancel_restores_values_from_popup_open() {
         let mut app = test_app_with(nested_merge_chain(), "cancel-restore");
-        app.search.set_field(crate::app::features::search::SearchField::Message);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Message);
         *app.search.value_mut() = "original".into();
         app.open_search();
         assert!(matches!(app.mode(), crate::app::models::Mode::Search));
-        app.search.set_field(crate::app::features::search::SearchField::Message);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Message);
         *app.search.value_mut() = "edited beyond recognition".into();
         app.handle_search(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Esc,
@@ -783,7 +823,8 @@ mod tests {
         ));
         assert!(!matches!(app.mode(), crate::app::models::Mode::Search));
         assert_eq!(
-            app.search.value(crate::app::features::search::SearchField::Message),
+            app.search
+                .value(crate::app::features::search::SearchField::Message),
             "original",
             "cancel must restore the values from popup open"
         );
@@ -801,7 +842,10 @@ mod tests {
         assert!(app.search.matches.is_empty(), "matches must be dropped");
         assert!(!app.search.filter_active, "filter must be off");
         assert!(app.search.notice.is_some(), "user must be told");
-        assert!(matches!(app.mode(), crate::app::models::Mode::Search), "popup stays open");
+        assert!(
+            matches!(app.mode(), crate::app::models::Mode::Search),
+            "popup stays open"
+        );
     }
 
     /// Search popup opens during progressive loading; executing tells the
@@ -811,13 +855,21 @@ mod tests {
         let mut app = test_app_with(nested_merge_chain(), "search-loading");
         app.history_loading = true;
         app.open_search();
-        assert!(matches!(app.mode(), crate::app::models::Mode::Search), "popup must open");
-        app.search.set_field(crate::app::features::search::SearchField::Message);
+        assert!(
+            matches!(app.mode(), crate::app::models::Mode::Search),
+            "popup must open"
+        );
+        app.search
+            .set_field(crate::app::features::search::SearchField::Message);
         *app.search.value_mut() = "anything".into();
         app.execute_search();
         assert!(matches!(app.mode(), crate::app::models::Mode::Search));
         assert!(
-            app.search.notice.as_deref().unwrap_or("").contains("still loading"),
+            app.search
+                .notice
+                .as_deref()
+                .unwrap_or("")
+                .contains("still loading"),
             "notice must explain the wait"
         );
     }
@@ -828,7 +880,8 @@ mod tests {
     #[test]
     fn reset_then_esc_keeps_cleared_inputs() {
         let mut app = test_app_with(nested_merge_chain(), "reset-esc");
-        app.search.set_field(crate::app::features::search::SearchField::Message);
+        app.search
+            .set_field(crate::app::features::search::SearchField::Message);
         *app.search.value_mut() = "old data".into();
         app.open_search();
         app.activate_search_button(2); // Reset
@@ -838,7 +891,9 @@ mod tests {
         ));
         app.open_search();
         assert!(
-            app.search.value(crate::app::features::search::SearchField::Message).is_empty(),
+            app.search
+                .value(crate::app::features::search::SearchField::Message)
+                .is_empty(),
             "reset must survive Esc"
         );
     }
@@ -911,7 +966,10 @@ mod tests {
 
         app.search.set_field(SearchField::Message);
         *app.search.value_mut() = "parser fix".into();
-        assert_eq!(texts(app.search_suggestions()), vec!["fix parser edge case"]);
+        assert_eq!(
+            texts(app.search_suggestions()),
+            vec!["fix parser edge case"]
+        );
 
         app.search.set_field(SearchField::Author);
         *app.search.value_mut() = "bob".into();
@@ -964,7 +1022,10 @@ mod tests {
         *app.search.value_mut() = "s".into();
         let with_s = texts(app.search_suggestions());
         for name in ["Sam", "Sasha", "Steve"] {
-            assert!(with_s.contains(&name.to_string()), "{with_s:?} missing {name}");
+            assert!(
+                with_s.contains(&name.to_string()),
+                "{with_s:?} missing {name}"
+            );
         }
         assert!(!with_s.contains(&"Bob".to_string()));
     }
@@ -980,19 +1041,29 @@ mod tests {
         let sig = git2::Signature::now("t", "t@t").unwrap();
         let tree_id = repo.index().unwrap().write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
-        let base = repo.commit(Some("HEAD"), &sig, &sig, "base", &tree, &[]).unwrap();
+        let base = repo
+            .commit(Some("HEAD"), &sig, &sig, "base", &tree, &[])
+            .unwrap();
         let base_commit = repo.find_commit(base).unwrap();
         // Unmerged branch with its own commit on top of base.
         let side = repo
             .commit(None, &sig, &sig, "side work", &tree, &[&base_commit])
             .unwrap();
-        repo.branch("feature-x", &repo.find_commit(side).unwrap(), false).unwrap();
+        repo.branch("feature-x", &repo.find_commit(side).unwrap(), false)
+            .unwrap();
         let head2 = repo
-            .commit(Some("HEAD"), &sig, &sig, "main work", &tree, &[&base_commit])
+            .commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "main work",
+                &tree,
+                &[&base_commit],
+            )
             .unwrap();
         let _ = head2;
 
-        let mut app = crate::app::App::new(dir.clone(), true).unwrap();
+        let mut app = crate::app::App::new(dir.clone(), true);
         // Pump the real loader until the (tiny) history is in.
         for _ in 0..200 {
             app.maybe_finish_history_load();
@@ -1062,7 +1133,11 @@ mod tests {
         *app.search.value_mut() = "kept".into();
         app.search.select_all = true;
         app.handle_search(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-        assert_eq!(app.search.value(SearchField::Message), "kept", "deselect keeps value");
+        assert_eq!(
+            app.search.value(SearchField::Message),
+            "kept",
+            "deselect keeps value"
+        );
         assert!(!app.search.select_all);
     }
 
@@ -1071,8 +1146,14 @@ mod tests {
     fn date_clear_is_staged_to_then_from() {
         use crate::app::features::search::SearchField;
         let mut app = test_app_with(nested_merge_chain(), "date-staged-clear");
-        *app.search.values.get_mut(SearchField::DateFrom.index()).unwrap() = "2024-01-01".into();
-        *app.search.values.get_mut(SearchField::DateTo.index()).unwrap() = "2024-06-30".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateFrom.index())
+            .unwrap() = "2024-01-01".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateTo.index())
+            .unwrap() = "2024-06-30".into();
 
         app.clear_date_row_staged();
         assert_eq!(app.search.value(SearchField::DateTo), "");
@@ -1097,7 +1178,11 @@ mod tests {
         assert!(app.search.select_all, "prefill must arrive selected");
 
         app.handle_search(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE));
-        assert_eq!(app.search.value(SearchField::DateTo), "2", "typing replaces, not appends");
+        assert_eq!(
+            app.search.value(SearchField::DateTo),
+            "2",
+            "typing replaces, not appends"
+        );
 
         // Same flow, Backspace: straight back to empty (END token).
         *app.search.value_mut() = String::new(); // reset To for a fresh focus
@@ -1126,7 +1211,11 @@ mod tests {
         assert_eq!(app.search.cursor, 9, "right hops the whole joiner");
 
         app.handle_search(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
-        assert_eq!(app.search.value(SearchField::Author), "alicebob", "joiner gone, texts joined");
+        assert_eq!(
+            app.search.value(SearchField::Author),
+            "alicebob",
+            "joiner gone, texts joined"
+        );
         assert_eq!(app.search.cursor, 5);
     }
 
@@ -1146,7 +1235,14 @@ mod tests {
         app.handle_search(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert_eq!(app.search.value(SearchField::Author), " OR bob");
         match app.mode() {
-            Mode::Confirm(ConfirmAction::RemoveOrSegment { field_index, segment_index, .. }, _) => {
+            Mode::Confirm(
+                ConfirmAction::RemoveOrSegment {
+                    field_index,
+                    segment_index,
+                    ..
+                },
+                _,
+            ) => {
                 assert_eq!(*field_index, SearchField::Author.index());
                 assert_eq!(*segment_index, 0);
             }
@@ -1163,7 +1259,10 @@ mod tests {
         *app.search.value_mut() = "x".into();
         app.search.cursor = 1;
         app.handle_search(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
-        assert!(matches!(app.mode(), Mode::Search), "no confirm for lone block");
+        assert!(
+            matches!(app.mode(), Mode::Search),
+            "no confirm for lone block"
+        );
     }
 
     /// Executed search stores its terms for highlighting; clearing drops them.
@@ -1201,7 +1300,9 @@ mod tests {
         let count_marks = |app: &mut App| {
             let backend = TestBackend::new(140, 45);
             let mut terminal = Terminal::new(backend).unwrap();
-            terminal.draw(|frame| crate::ui::render(frame, app)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, app))
+                .unwrap();
             let buffer = terminal.backend().buffer().clone();
             let mut marks = 0usize;
             for cell in buffer.content() {
@@ -1215,11 +1316,17 @@ mod tests {
             marks
         };
         let before = count_marks(&mut app);
-        assert!(before >= 6, "highlighted chars visible in plain list, got {before}");
+        assert!(
+            before >= 6,
+            "highlighted chars visible in plain list, got {before}"
+        );
         app.toggle_commit_diff();
         assert!(app.show_commit_diff);
         let after = count_marks(&mut app);
-        assert!(after >= before, "details toggle lost highlights: {before} -> {after}");
+        assert!(
+            after >= before,
+            "details toggle lost highlights: {before} -> {after}"
+        );
     }
 
     /// Date From=To covers the WHOLE day: commits at any time that day match,
@@ -1236,11 +1343,21 @@ mod tests {
         commits[4].timestamp = DEC25 + 12 * 3600;
         commits[5].timestamp = DEC25 - 86_400;
         let mut app = test_app_with(commits, "date-single-day");
-        *app.search.values.get_mut(SearchField::DateFrom.index()).unwrap() = "2020-12-25".into();
-        *app.search.values.get_mut(SearchField::DateTo.index()).unwrap() = "2020-12-25".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateFrom.index())
+            .unwrap() = "2020-12-25".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateTo.index())
+            .unwrap() = "2020-12-25".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
-        assert_eq!(app.search.matches, vec![1, 2, 4], "whole 25th, nothing else");
+        assert_eq!(
+            app.search.matches,
+            vec![1, 2, 4],
+            "whole 25th, nothing else"
+        );
     }
 
     /// The reported combo: message OR (with a multi-word part) AND single-day
@@ -1259,19 +1376,33 @@ mod tests {
         let merge_hash = commits[1].hash.clone();
         let api_hash = commits[2].hash.clone();
         let mut app = test_app_with(commits, "combo-merge");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() =
-            "feat OR api endpoints".into();
-        *app.search.values.get_mut(SearchField::DateFrom.index()).unwrap() = "2020-12-25".into();
-        *app.search.values.get_mut(SearchField::DateTo.index()).unwrap() = "2020-12-25".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "feat OR api endpoints".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateFrom.index())
+            .unwrap() = "2020-12-25".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateTo.index())
+            .unwrap() = "2020-12-25".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
-        assert_eq!(app.search.matches, vec![1, 2], "merge via 'feat', api via phrase");
+        assert_eq!(
+            app.search.matches,
+            vec![1, 2],
+            "merge via 'feat', api via phrase"
+        );
         // Multi-word part is a phrase: "endpoints api" alone must NOT match.
         let mut commits = nested_merge_chain();
         commits[0].message = "endpoints api swapped".into();
         let mut app = test_app_with(commits, "combo-phrase");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() =
-            "api endpoints".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "api endpoints".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert!(app.search.matches.is_empty(), "phrase order matters");
@@ -1289,8 +1420,14 @@ mod tests {
         commits[1].message = "feat: quiet".into();
         commits[1].author_name = "Bob".into();
         let mut app = test_app_with(commits, "and-fields");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "feat".into();
-        *app.search.values.get_mut(SearchField::Author.index()).unwrap() = "ALICE".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "feat".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Author.index())
+            .unwrap() = "ALICE".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert_eq!(app.search.matches, vec![0], "message AND author, any case");
@@ -1307,7 +1444,10 @@ mod tests {
         let mut app = test_app_with(commits, "quick-span");
         let run = |query: &str, app: &mut App| {
             app.search.values = Default::default();
-            *app.search.values.get_mut(SearchField::Quick.index()).unwrap() = query.into();
+            *app.search
+                .values
+                .get_mut(SearchField::Quick.index())
+                .unwrap() = query.into();
             app.nav.push(crate::app::models::Mode::Search);
             app.execute_search();
             app.search.matches.clone()
@@ -1328,18 +1468,30 @@ mod tests {
         commits[1].message = "fix: pagination".into();
         commits[2].message = "feat: pagination".into();
         let mut app = test_app_with(commits, "wildcards");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() =
-            "fix*pagination".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "fix*pagination".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert_eq!(app.search.matches, vec![0, 1], "* bridges the gap");
         // Wildcard patterns are whole-string globs: without a trailing * the
         // pattern must cover the full message.
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "f?x:*".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "f?x:*".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
-        assert_eq!(app.search.matches, vec![0, 1], "? matches one char, * the rest");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "f?x:".into();
+        assert_eq!(
+            app.search.matches,
+            vec![0, 1],
+            "? matches one char, * the rest"
+        );
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "f?x:".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert!(app.search.matches.is_empty(), "wildcard globs are anchored");
@@ -1352,11 +1504,17 @@ mod tests {
         let mut commits = nested_merge_chain();
         commits[0].message = "feat: keepme".into();
         let mut app = test_app_with(commits, "bad-date");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "keepme".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "keepme".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert_eq!(app.search.matches, vec![0]);
-        *app.search.values.get_mut(SearchField::DateFrom.index()).unwrap() = "2020-13".into();
+        *app.search
+            .values
+            .get_mut(SearchField::DateFrom.index())
+            .unwrap() = "2020-13".into();
         app.execute_search();
         assert!(app.search.notice.is_some(), "invalid date -> notice");
         assert_eq!(app.search.matches, vec![0], "old matches survive");
@@ -1375,9 +1533,17 @@ mod tests {
         // No file text: Right from Reset reaches Help (slot 3) and stops.
         app.search.button_focus = Some(2);
         app.handle_search(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        assert_eq!(app.search.button_focus, Some(3), "Help is the last base slot");
+        assert_eq!(
+            app.search.button_focus,
+            Some(3),
+            "Help is the last base slot"
+        );
         app.handle_search(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        assert_eq!(app.search.button_focus, Some(3), "no file slots without file text");
+        assert_eq!(
+            app.search.button_focus,
+            Some(3),
+            "no file slots without file text"
+        );
         // Enter on Help opens the overlay ('?' types into inputs, so this is
         // the only way in from the popup).
         app.handle_search(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -1397,7 +1563,11 @@ mod tests {
         // Slot 5: the action selector; Enter/Space cycles through the actions.
         use crate::app::features::search::FileAction;
         app.handle_search(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        assert_eq!(app.search.button_focus, Some(5), "action selector reachable");
+        assert_eq!(
+            app.search.button_focus,
+            Some(5),
+            "action selector reachable"
+        );
         assert_eq!(app.search.file_action, FileAction::All);
         app.handle_search(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         assert_eq!(app.search.file_action, FileAction::Added);
@@ -1418,7 +1588,10 @@ mod tests {
         commits[0].message = "feat: timed".into();
         let mut app = test_app_with(commits, "search-timing");
         app.drain_perf_metrics();
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "timed".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "timed".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert_eq!(app.search.matches, vec![0]);
@@ -1434,7 +1607,10 @@ mod tests {
         );
 
         // No-match: the notice carries the duration instead.
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "nosuch".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "nosuch".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         let notice = app.search.notice.as_deref().unwrap_or("");
@@ -1459,7 +1635,10 @@ mod tests {
                 .trim_start_matches("Ctrl+U: clear field. ");
             assert!(lines.contains(rules), "{field:?} rules missing from help");
         }
-        assert!(lines.contains("Tab        autocomplete"), "key bindings intact");
+        assert!(
+            lines.contains("Tab        autocomplete"),
+            "key bindings intact"
+        );
         assert!(
             !lines.contains("comma-separated = match any"),
             "stale hand-written field line back in help"
@@ -1476,14 +1655,23 @@ mod tests {
         let render_text = |app: &mut App| {
             let backend = TestBackend::new(120, 35);
             let mut terminal = Terminal::new(backend).unwrap();
-            terminal.draw(|frame| crate::ui::render(frame, app)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, app))
+                .unwrap();
             let buffer = terminal.backend().buffer().clone();
             (0..35)
-                .map(|y| (0..120).map(|x| buffer[(x, y)].symbol().to_string()).collect::<String>())
+                .map(|y| {
+                    (0..120)
+                        .map(|x| buffer[(x, y)].symbol().to_string())
+                        .collect::<String>()
+                })
                 .collect::<Vec<_>>()
                 .join("\n")
         };
-        assert!(render_text(&mut app).contains("Search Commits"), "popup visible");
+        assert!(
+            render_text(&mut app).contains("Search Commits"),
+            "popup visible"
+        );
         // Activate the Help button like a click/Enter would.
         app.activate_search_button(3);
         assert!(app.show_help);
@@ -1511,25 +1699,51 @@ mod tests {
         // Field click: focus + cursor at the clicked char; double-click selects.
         app.search.set_field(SearchField::Message);
         *app.search.value_mut() = "clickable".into();
-        app.apply_search_popup_hit(Hit::Field(SearchField::Message.index()), Some(3), false, width);
+        app.apply_search_popup_hit(
+            Hit::Field(SearchField::Message.index()),
+            Some(3),
+            false,
+            width,
+        );
         assert_eq!(app.search.field, SearchField::Message);
         assert_eq!(app.search.cursor, 3);
-        app.apply_search_popup_hit(Hit::Field(SearchField::Message.index()), Some(3), true, width);
+        app.apply_search_popup_hit(
+            Hit::Field(SearchField::Message.index()),
+            Some(3),
+            true,
+            width,
+        );
         assert!(app.search.select_all, "double-click selects all");
         app.search.select_all = false;
 
         // Click inside an " OR " joiner: remove-block confirm, cursor untouched.
         *app.search.value_mut() = "abc OR def".into();
         app.search.cursor = 2;
-        app.apply_search_popup_hit(Hit::Field(SearchField::Message.index()), Some(5), false, width);
+        app.apply_search_popup_hit(
+            Hit::Field(SearchField::Message.index()),
+            Some(5),
+            false,
+            width,
+        );
         assert!(matches!(
             app.mode(),
-            Mode::Confirm(ConfirmAction::RemoveOrSegment { segment_index: 1, .. }, _)
+            Mode::Confirm(
+                ConfirmAction::RemoveOrSegment {
+                    segment_index: 1,
+                    ..
+                },
+                _
+            )
         ));
         app.nav.pop();
 
         // [ OR ] appends the separator; [ clear ] strips the last OR segment.
-        app.apply_search_popup_hit(Hit::OrAppend(SearchField::Message.index()), None, false, width);
+        app.apply_search_popup_hit(
+            Hit::OrAppend(SearchField::Message.index()),
+            None,
+            false,
+            width,
+        );
         assert_eq!(app.search.value(SearchField::Message), "abc OR def OR ");
         app.apply_search_popup_hit(
             Hit::ClearField(SearchField::Message.index()),
@@ -1563,7 +1777,10 @@ mod tests {
         assert!(!app.search.file_full_history);
         app.apply_search_popup_hit(Hit::FileAction(3), None, false, width);
         assert_eq!(app.search.file_action, FileAction::Deleted);
-        *app.search.values.get_mut(SearchField::File.index()).unwrap() = String::new();
+        *app.search
+            .values
+            .get_mut(SearchField::File.index())
+            .unwrap() = String::new();
         app.search.file_full_history = true;
         app.search.file_action = FileAction::All;
 
@@ -1576,14 +1793,20 @@ mod tests {
 
         let before_reset = app.search.values.clone();
         app.apply_search_popup_hit(Hit::Button(2), None, false, width);
-        assert!(app.search.values.iter().all(String::is_empty), "Reset clears");
+        assert!(
+            app.search.values.iter().all(String::is_empty),
+            "Reset clears"
+        );
         assert!(app.search.reset_backup.is_some());
         app.apply_search_popup_hit(Hit::Button(2), None, false, width);
         assert_eq!(app.search.values, before_reset, "Undo Reset restores");
 
         app.search.open_backup = Some(Default::default());
         app.apply_search_popup_hit(Hit::Button(1), None, false, width);
-        assert!(matches!(app.mode(), Mode::Normal), "Cancel closes the popup");
+        assert!(
+            matches!(app.mode(), Mode::Normal),
+            "Cancel closes the popup"
+        );
         assert!(
             app.search.values.iter().all(String::is_empty),
             "Cancel restored the open snapshot"
@@ -1625,7 +1848,11 @@ mod tests {
         // Empty Author field lists suggestions — Tab must still move on.
         app.handle_search(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
         assert_eq!(app.search.field, SearchField::DateFrom, "focus moved");
-        assert_eq!(app.search.value(SearchField::Author), "", "no auto-completion");
+        assert_eq!(
+            app.search.value(SearchField::Author),
+            "",
+            "no auto-completion"
+        );
 
         // With text typed, Tab completes.
         app.search.set_field(SearchField::Author);
@@ -1653,19 +1880,20 @@ mod tests {
         commits[0].message = "fix search bug".into();
         commits[1].message = "unrelated".into();
         let mut app = test_app_with(commits, "row-spans");
-        *app.search.values.get_mut(SearchField::Message.index()).unwrap() = "search".into();
+        *app.search
+            .values
+            .get_mut(SearchField::Message.index())
+            .unwrap() = "search".into();
         app.nav.push(crate::app::models::Mode::Search);
         app.execute_search();
         assert_eq!(app.search.matches, vec![0]);
 
         let statuses = std::collections::HashMap::new();
-        let spans =
-            commit_row_spans(&app, 0, 0, None, 0, 7, 60, &statuses, false, None);
+        let spans = commit_row_spans(&app, 0, 0, None, 0, 7, 60, &statuses, false, None);
         let marked: String = spans
             .iter()
             .filter(|s| {
-                s.style.fg == Some(Color::Yellow)
-                    && s.style.add_modifier.contains(Modifier::BOLD)
+                s.style.fg == Some(Color::Yellow) && s.style.add_modifier.contains(Modifier::BOLD)
             })
             .map(|s| s.content.as_ref())
             .collect();
@@ -1680,8 +1908,9 @@ mod tests {
         let statuses: std::collections::HashMap<usize, char> = [(0usize, 'M')].into();
         let lettered = commit_row_spans(&app, 0, 0, None, 0, 7, 60, &statuses, true, None);
         assert!(
-            lettered.iter().any(|s| s.content.as_ref() == "M "
-                && s.style.add_modifier.contains(Modifier::BOLD)),
+            lettered.iter().any(
+                |s| s.content.as_ref() == "M " && s.style.add_modifier.contains(Modifier::BOLD)
+            ),
             "status letter after the row number"
         );
     }
@@ -1734,7 +1963,10 @@ mod tests {
         app.search.set_field(SearchField::Author);
         *app.search.value_mut() = "Alice OR bo".into();
         app.apply_completion("Bob Builder");
-        assert_eq!(app.search.value(SearchField::Author), "Alice OR Bob Builder");
+        assert_eq!(
+            app.search.value(SearchField::Author),
+            "Alice OR Bob Builder"
+        );
 
         app.search.set_field(SearchField::File);
         *app.search.value_mut() = "a.rs OR b.rs, gi".into();
@@ -1869,7 +2101,11 @@ mod tests {
         }
         let mut app = test_app_with(commits, "move-preview");
         app.list_state.select(Some(0));
-        app.move_state = Some(MoveState { chain: vec![0, 1, 2, 3], from: 0, pos: 0 });
+        app.move_state = Some(MoveState {
+            chain: vec![0, 1, 2, 3],
+            from: 0,
+            pos: 0,
+        });
         app.nav.push(Mode::Move);
         let key = |code| KeyEvent::new(code, KeyModifiers::NONE);
         app.handle_key(key(KeyCode::Down));
@@ -1882,12 +2118,21 @@ mod tests {
 
         let screen = |app: &mut App| {
             let mut terminal = Terminal::new(TestBackend::new(200, 30)).unwrap();
-            terminal.draw(|frame| crate::ui::render(frame, app)).unwrap();
+            terminal
+                .draw(|frame| crate::ui::render(frame, app))
+                .unwrap();
             let buffer = terminal.backend().buffer().clone();
-            buffer.content().iter().map(|cell| cell.symbol()).collect::<String>()
+            buffer
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>()
         };
         let text = screen(&mut app);
-        let at = |needle: &str| text.find(needle).unwrap_or_else(|| panic!("missing {needle}"));
+        let at = |needle: &str| {
+            text.find(needle)
+                .unwrap_or_else(|| panic!("missing {needle}"))
+        };
         assert!(text.contains("MOVE MODE"));
         assert!(at("subject-1") < at("subject-2"));
         assert!(at("subject-2") < at("subject-0"));
@@ -1895,7 +2140,10 @@ mod tests {
         assert!(at("[MOVE]") < at("subject-3"));
 
         app.handle_key(key(KeyCode::Enter));
-        assert!(matches!(app.mode(), Mode::Confirm(_, false)), "confirm defaults to No");
+        assert!(
+            matches!(app.mode(), Mode::Confirm(_, false)),
+            "confirm defaults to No"
+        );
         assert!(screen(&mut app).contains("Rewrites history: 3 commits get new hashes"));
         app.handle_key(key(KeyCode::Char('n')));
         app.handle_key(key(KeyCode::Esc));
@@ -1916,7 +2164,7 @@ mod tests {
     fn non_final_batch_recomputes_graph_prefixes() {
         let dir = std::env::temp_dir().join("ghh-progressive-reset-test");
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = App::new(dir, true).unwrap();
+        let mut app = App::new(dir, true);
         app.initial_history_loader_rx = None; // loader thread is irrelevant here
         app.commit_list_view = CommitListView::Graph; // classic engine, no git needed
 

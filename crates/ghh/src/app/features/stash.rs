@@ -19,7 +19,7 @@ pub struct StashState {
 }
 
 impl StashState {
-    pub fn new(repo_path: &Path) -> anyhow::Result<Self> {
+    pub fn new(repo_path: &Path) -> git::Result<Self> {
         let mut state = Self {
             entries: Vec::new(),
             list_state: ListState::default(),
@@ -33,7 +33,7 @@ impl StashState {
     }
 
     /// Re-read the stash list, keeping the cursor near where it was.
-    pub fn reload(&mut self, repo_path: &Path) -> anyhow::Result<()> {
+    pub fn reload(&mut self, repo_path: &Path) -> git::Result<()> {
         self.entries = git::list_stashes(repo_path)?;
         let selected = self.list_state.selected().unwrap_or(0);
         self.select(repo_path, selected);
@@ -53,7 +53,8 @@ impl StashState {
             self.list_state.select(None);
             return;
         }
-        self.list_state.select(Some(index.min(self.entries.len() - 1)));
+        self.list_state
+            .select(Some(index.min(self.entries.len() - 1)));
         let hash = self.selected().map(|e| e.hash.clone()).unwrap_or_default();
         self.diff_lines = match git::stash_patch(repo_path, &hash) {
             Ok(patch) => patch.lines().map(String::from).collect(),
@@ -88,7 +89,8 @@ impl App {
         let repo_path = self.repo_path.clone();
         let page = self
             .stash_regions()
-            .map_or(10, |(_, diff, _)| crate::app::layout::pane_page_step(diff)) as isize;
+            .map_or(10, |(_, diff, _)| crate::app::layout::pane_page_step(diff))
+            as isize;
         let Some(stash) = self.stash.as_mut() else {
             self.nav.reset(Mode::Normal);
             return false;
@@ -131,12 +133,14 @@ impl App {
             }
             KeyCode::Char('p') => {
                 if let Some(entry) = stash.selected().cloned() {
-                    self.nav.push(Mode::Confirm(ConfirmAction::StashPop { entry }, true));
+                    self.nav
+                        .push(Mode::Confirm(ConfirmAction::StashPop { entry }, true));
                 }
             }
             KeyCode::Char('d') => {
                 if let Some(entry) = stash.selected().cloned() {
-                    self.nav.push(Mode::Confirm(ConfirmAction::StashDrop { entry }, false));
+                    self.nav
+                        .push(Mode::Confirm(ConfirmAction::StashDrop { entry }, false));
                 }
             }
             _ => {}
@@ -147,15 +151,21 @@ impl App {
     pub(crate) fn execute_stash_apply(&mut self, entry: StashEntry, pop: bool) {
         let verb = if pop { "Popped" } else { "Applied" };
         let result = git::stash_apply(&self.repo_path, &entry, pop);
-        self.finish_stash_action(result, format!("{verb} {} to the working tree.", entry.name));
+        self.finish_stash_action(
+            result,
+            format!("{verb} {} to the working tree.", entry.name),
+        );
     }
 
     pub(crate) fn execute_stash_drop(&mut self, entry: StashEntry) {
         let result = git::stash_drop(&self.repo_path, &entry);
-        self.finish_stash_action(result, format!("Dropped {} ({}).", entry.name, &entry.hash[..7]));
+        self.finish_stash_action(
+            result,
+            format!("Dropped {} ({}).", entry.name, &entry.hash[..7]),
+        );
     }
 
-    fn finish_stash_action(&mut self, result: anyhow::Result<()>, done: String) {
+    fn finish_stash_action(&mut self, result: git::Result<()>, done: String) {
         // Reload either way: a failed pop keeps the stash, an external change shifts it.
         if let Some(stash) = self.stash.as_mut() {
             let _ = stash.reload(&self.repo_path);

@@ -1,6 +1,16 @@
 use super::commands::AutomationCommand;
 use super::keys;
-use anyhow::{Result, anyhow};
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Cannot read automation-keys file '{path}': {source}")]
+    ReadFile {
+        path: String,
+        source: std::io::Error,
+    },
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Load automation commands from either a text file or a comma-separated string.
 ///
@@ -28,8 +38,10 @@ fn parse_automation_csv(input: &str) -> Vec<AutomationCommand> {
 /// Parse a text file where each non-blank, non-comment line is one command:
 ///   `KEY_PRESS <KEY_NAME>`, `SLEEP <ms>`, or `# comment`
 fn parse_automation_file(path: &str) -> Result<Vec<AutomationCommand>> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| anyhow!("Cannot read automation-keys file '{}': {}", path, e))?;
+    let content = std::fs::read_to_string(path).map_err(|source| Error::ReadFile {
+        path: path.to_string(),
+        source,
+    })?;
     let mut cmds = Vec::new();
     for (lineno, raw) in content.lines().enumerate() {
         let line = raw.trim();

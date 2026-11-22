@@ -3,4 +3,4 @@ pub mod keys;
 mod loader;
 
 pub use commands::AutomationCommand;
-pub use loader::load_automation_commands;
+pub use loader::{Error, load_automation_commands};

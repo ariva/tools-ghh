@@ -205,7 +205,7 @@ mod tests {
     fn staging_screen_draws_all_blocks() {
         let dir = std::env::temp_dir().join(format!("ghh-staging-render-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app = crate::app::App::new(dir, true).unwrap();
+        let mut app = crate::app::App::new(dir, true);
         app.nav.push(crate::app::models::Mode::Staging);
         let mut list_state = ratatui::widgets::ListState::default();
         list_state.select(Some(0));

@@ -27,161 +27,178 @@ pub(crate) fn commit_row_spans(
     file_letters_active: bool,
     squash_ref: Option<&SquashState>,
 ) -> Vec<Span<'static>> {
-        // Graph, HEAD mark and ref labels belong to the row; the commit
-        // text follows the move-mode preview (same commit when not moving).
-        let row_commit = &app.commits[idx];
-        let c = &app.commits[app.display_idx(idx)];
-        let (prefix, prefix_lanes): (&str, &[u8]) = match prefix_override {
-            Some((p, l)) => (p.as_str(), l.as_slice()),
-            None => (row_commit.graph_prefix.as_str(), row_commit.graph_prefix_lanes.as_slice()),
-        };
-        let is_collapsed = app.collapsed_merges.contains(&row_commit.hash);
-        // Search hit: gitk-style bold row, cyan index (matches are
-        // sorted commit indices, so this is a binary search per row).
-        let is_search_match = !app.search.matches.is_empty()
-            && app.search.matches.binary_search(&idx).is_ok();
-        let mut spans: Vec<Span<'static>> = Vec::new();
+    // Graph, HEAD mark and ref labels belong to the row; the commit
+    // text follows the move-mode preview (same commit when not moving).
+    let row_commit = &app.commits[idx];
+    let c = &app.commits[app.display_idx(idx)];
+    let (prefix, prefix_lanes): (&str, &[u8]) = match prefix_override {
+        Some((p, l)) => (p.as_str(), l.as_slice()),
+        None => (
+            row_commit.graph_prefix.as_str(),
+            row_commit.graph_prefix_lanes.as_slice(),
+        ),
+    };
+    let is_collapsed = app.collapsed_merges.contains(&row_commit.hash);
+    // Search hit: gitk-style bold row, cyan index (matches are
+    // sorted commit indices, so this is a binary search per row).
+    let is_search_match =
+        !app.search.matches.is_empty() && app.search.matches.binary_search(&idx).is_ok();
+    let mut spans: Vec<Span<'static>> = Vec::new();
 
-        spans.push(Span::styled(
-            format!("{:>width$} ", row_idx + 1, width = row_count_width),
-            if is_search_match {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            },
-        ));
-        // File-search status prefix (A/M/D/R) right after the row
-        // number; unmatched rows get padding so columns stay aligned.
-        if file_letters_active {
-            match file_statuses.get(&idx) {
-                Some(&status) => spans.push(Span::styled(
-                    format!("{status} "),
-                    Style::default()
-                        .fg(file_status_color(status))
-                        .add_modifier(Modifier::BOLD),
-                )),
-                None => spans.push(Span::raw("  ")),
-            }
-        }
-
-        if app.commit_list_view != CommitListView::Simple {
-            // Nested rows indent by their depth; the first row of a
-            // deeper group gets a connector curving out of its parent.
-            if depth > 0 {
-                let prev_depth = row_idx
-                    .checked_sub(1)
-                    .and_then(|r| app.visible.get(r))
-                    .map(row_depth)
-                    .unwrap_or(0);
-                let color = prefix_lanes
-                    .first()
-                    .map(|&lane| lane_color(lane))
-                    .unwrap_or(Color::DarkGray);
-                let mut indent = "  ".repeat(depth);
-                if depth > prev_depth {
-                    indent.truncate(indent.len() - 2);
-                    indent.push('\u{2570}');
-                    indent.push(' ');
-                }
-                spans.push(Span::styled(indent, Style::default().fg(color)));
-            }
-            let is_head = app.head_hash.as_deref() == Some(row_commit.hash.as_str());
-            let graph_spans =
-                build_graph_spans(prefix, prefix_lanes, is_collapsed, is_head);
-            if !graph_spans.is_empty() {
-                spans.extend(graph_spans);
-                spans.push(Span::raw(" "));
-            }
-        }
-
-        // Matched rows keep their normal colors; only the parts the
-        // search actually hit are marked (red on yellow hash, yellow
-        // elsewhere).
-        let terms = if is_search_match {
-            app.search.executed_terms.as_ref()
+    spans.push(Span::styled(
+        format!("{:>width$} ", row_idx + 1, width = row_count_width),
+        if is_search_match {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
-            None
-        };
-        let hash_text = c.short_hash().to_string();
-        if let Some(t) = terms {
-            spans.extend(crate::ui::helpers::highlight_spans(
-                &hash_text,
-                Style::default().fg(Color::Yellow),
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                &crate::app::features::search::match_ranges(&hash_text, &t.for_hash()),
-            ));
+            Style::default().fg(Color::DarkGray)
+        },
+    ));
+    // File-search status prefix (A/M/D/R) right after the row
+    // number; unmatched rows get padding so columns stay aligned.
+    if file_letters_active {
+        match file_statuses.get(&idx) {
+            Some(&status) => spans.push(Span::styled(
+                format!("{status} "),
+                Style::default()
+                    .fg(file_status_color(status))
+                    .add_modifier(Modifier::BOLD),
+            )),
+            None => spans.push(Span::raw("  ")),
+        }
+    }
+
+    if app.commit_list_view != CommitListView::Simple {
+        // Nested rows indent by their depth; the first row of a
+        // deeper group gets a connector curving out of its parent.
+        if depth > 0 {
+            let prev_depth = row_idx
+                .checked_sub(1)
+                .and_then(|r| app.visible.get(r))
+                .map(row_depth)
+                .unwrap_or(0);
+            let color = prefix_lanes
+                .first()
+                .map(|&lane| lane_color(lane))
+                .unwrap_or(Color::DarkGray);
+            let mut indent = "  ".repeat(depth);
+            if depth > prev_depth {
+                indent.truncate(indent.len() - 2);
+                indent.push('\u{2570}');
+                indent.push(' ');
+            }
+            spans.push(Span::styled(indent, Style::default().fg(color)));
+        }
+        let is_head = app.head_hash.as_deref() == Some(row_commit.hash.as_str());
+        let graph_spans = build_graph_spans(prefix, prefix_lanes, is_collapsed, is_head);
+        if !graph_spans.is_empty() {
+            spans.extend(graph_spans);
             spans.push(Span::raw(" "));
-        } else {
-            spans.push(Span::styled(
-                format!("{hash_text} "),
-                Style::default().fg(Color::Yellow),
-            ));
         }
-        spans.push(Span::styled(
-            format!("{} ", c.date_display_text()),
-            Style::default().fg(Color::Cyan),
+    }
+
+    // Matched rows keep their normal colors; only the parts the
+    // search actually hit are marked (red on yellow hash, yellow
+    // elsewhere).
+    let terms = if is_search_match {
+        app.search.executed_terms.as_ref()
+    } else {
+        None
+    };
+    let hash_text = c.short_hash().to_string();
+    if let Some(t) = terms {
+        spans.extend(crate::ui::helpers::highlight_spans(
+            &hash_text,
+            Style::default().fg(Color::Yellow),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            &crate::app::features::search::match_ranges(&hash_text, &t.for_hash()),
         ));
-        let author_text = format!("{:<16}", truncate(&c.author_name, 16));
-        if let Some(t) = terms {
-            spans.extend(crate::ui::helpers::highlight_spans(
-                &author_text,
-                Style::default().fg(Color::Green),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-                &crate::app::features::search::match_ranges(&author_text, &t.for_author()),
-            ));
+        spans.push(Span::raw(" "));
+    } else {
+        spans.push(Span::styled(
+            format!("{hash_text} "),
+            Style::default().fg(Color::Yellow),
+        ));
+    }
+    spans.push(Span::styled(
+        format!("{} ", c.date_display_text()),
+        Style::default().fg(Color::Cyan),
+    ));
+    let author_text = format!("{:<16}", truncate(&c.author_name, 16));
+    if let Some(t) = terms {
+        spans.extend(crate::ui::helpers::highlight_spans(
+            &author_text,
+            Style::default().fg(Color::Green),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+            &crate::app::features::search::match_ranges(&author_text, &t.for_author()),
+        ));
+        spans.push(Span::raw(" "));
+    } else {
+        spans.push(Span::styled(
+            format!("{author_text} "),
+            Style::default().fg(Color::Green),
+        ));
+    }
+
+    let mut label_width = 0usize;
+    if let Some(labels) = app.ref_labels.get(&row_commit.hash) {
+        for label in labels {
+            let span = ref_label_span(label);
+            label_width += span.content.chars().count() + 1;
+            spans.push(span);
             spans.push(Span::raw(" "));
-        } else {
+        }
+    }
+    let avail = message_width.saturating_sub(label_width);
+    if let Some(t) = terms {
+        let full_ranges = crate::app::features::search::match_ranges(&c.message, &t.for_message());
+        let message_text =
+            crate::ui::helpers::truncate_keeping_match(&c.message, avail, &full_ranges);
+        spans.extend(crate::ui::helpers::highlight_spans(
+            &message_text,
+            Style::default(),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+            &crate::app::features::search::match_ranges(&message_text, &t.for_message()),
+        ));
+    } else {
+        spans.push(Span::raw(truncate(&c.message, avail)));
+    }
+
+    if let Some(sq) = squash_ref {
+        if idx == sq.base_idx {
             spans.push(Span::styled(
-                format!("{author_text} "),
-                Style::default().fg(Color::Green),
+                "  [BASE]",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ));
-        }
-
-        let mut label_width = 0usize;
-        if let Some(labels) = app.ref_labels.get(&row_commit.hash) {
-            for label in labels {
-                let span = ref_label_span(label);
-                label_width += span.content.chars().count() + 1;
-                spans.push(span);
-                spans.push(Span::raw(" "));
-            }
-        }
-        let avail = message_width.saturating_sub(label_width);
-        if let Some(t) = terms {
-            let full_ranges =
-                crate::app::features::search::match_ranges(&c.message, &t.for_message());
-            let message_text =
-                crate::ui::helpers::truncate_keeping_match(&c.message, avail, &full_ranges);
-            spans.extend(crate::ui::helpers::highlight_spans(
-                &message_text,
-                Style::default(),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-                &crate::app::features::search::match_ranges(&message_text, &t.for_message()),
-            ));
-        } else {
-            spans.push(Span::raw(truncate(&c.message, avail)));
-        }
-
-        if let Some(sq) = squash_ref {
-            if idx == sq.base_idx {
-                spans.push(Span::styled(
-                    "  [BASE]",
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-                ));
-            } else if sq.squash_set.contains(&idx) {
-                spans.push(Span::styled(
-                    "  [S]",
-                    Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
-                ));
-            }
-        }
-
-        if app.move_state.as_ref().is_some_and(|m| m.chain[m.pos] == idx) {
+        } else if sq.squash_set.contains(&idx) {
             spans.push(Span::styled(
-                "  [MOVE]",
-                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+                "  [S]",
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
             ));
         }
+    }
+
+    if app
+        .move_state
+        .as_ref()
+        .is_some_and(|m| m.chain[m.pos] == idx)
+    {
+        spans.push(Span::styled(
+            "  [MOVE]",
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
 
     spans
 }
@@ -308,7 +325,11 @@ fn render_commit_list_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
     let list_title = if app.drill_stack.is_empty() {
         format!(" Commits {}", app.list_title_suffix())
     } else {
-        format!("{}{}", app.breadcrumb(rect.width).text, app.list_title_suffix())
+        format!(
+            "{}{}",
+            app.breadcrumb(rect.width).text,
+            app.list_title_suffix()
+        )
     };
     let list = List::new(items)
         .block(
@@ -331,7 +352,6 @@ fn render_commit_list_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
     let mut render_state = ratatui::widgets::ListState::default().with_selected(selected_local);
     *render_state.offset_mut() = 0;
     frame.render_stateful_widget(list, rect, &mut render_state);
-
 }
 
 /// Right panels (only with the details view open): Commit Info + Diff,
@@ -372,8 +392,7 @@ fn render_diff_panels(
             .selected_commit_index()
             .filter(|idx| app.search.matches.binary_search(idx).is_ok())
             .and(app.search.executed_terms.as_ref());
-        let info_lines =
-            render_commit_info_lines(selected, stats, diff_files, info_terms);
+        let info_lines = render_commit_info_lines(selected, stats, diff_files, info_terms);
         let info_meta = scroll_label(
             app.commit_diff_info_scroll,
             info_lines.len(),
@@ -421,7 +440,6 @@ fn render_diff_panels(
         frame.render_widget(Clear, diff_sections[1]);
         frame.render_widget(diff_para, diff_sections[1]);
     }
-
 }
 
 pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active: bool) {
@@ -485,7 +503,9 @@ fn render_commit_info_lines(
         return vec![Line::from("No commit selected")];
     };
     // Search-hit marking, same convention as the Details pane.
-    let hl = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+    let hl = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
     let marked = |text: &str, terms: &[&str]| -> Vec<Span<'static>> {
         match search_terms {
             Some(_) => highlight_spans(text, Style::default(), hl, &match_ranges(text, terms)),
@@ -516,7 +536,10 @@ fn render_commit_info_lines(
     let mut hash_line = vec![Span::styled("Hash: ", Style::default().fg(Color::Yellow))];
     hash_line.extend(marked(&commit.hash, &terms.for_hash()));
     let mut author_line = vec![Span::styled("Author: ", Style::default().fg(Color::Yellow))];
-    author_line.extend(marked(&format!("{} <{email}>", commit.author_name), &terms.for_author()));
+    author_line.extend(marked(
+        &format!("{} <{email}>", commit.author_name),
+        &terms.for_author(),
+    ));
     let mut lines = vec![
         Line::from(hash_line),
         Line::from(author_line),
@@ -578,27 +601,29 @@ fn render_commit_info_lines(
         Style::default().fg(Color::Yellow),
     )));
     lines.extend(files.iter().map(|file| {
-        Line::from(vec![
-            Span::styled(
-                format!("{} ", file.status),
-                Style::default()
-                    .fg(file_status_color(file.status))
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("+{}", file.additions),
-                Style::default().fg(Color::Green),
-            ),
-            Span::raw(" "),
-            Span::styled(
-                format!("-{}", file.deletions),
-                Style::default().fg(Color::Red),
-            ),
-            Span::raw("  "),
-        ]
-        .into_iter()
-        .chain(marked(&file.path, &terms.for_file()))
-        .collect::<Vec<_>>())
+        Line::from(
+            vec![
+                Span::styled(
+                    format!("{} ", file.status),
+                    Style::default()
+                        .fg(file_status_color(file.status))
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("+{}", file.additions),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    format!("-{}", file.deletions),
+                    Style::default().fg(Color::Red),
+                ),
+                Span::raw("  "),
+            ]
+            .into_iter()
+            .chain(marked(&file.path, &terms.for_file()))
+            .collect::<Vec<_>>(),
+        )
     }));
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
@@ -636,8 +661,12 @@ pub fn render_squash_title(frame: &mut Frame, area: Rect) {
 
 fn render_mode_title(frame: &mut Frame, area: Rect, text: &'static str) {
     let title = Paragraph::new(text)
-    .style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
-    .alignment(ratatui::layout::Alignment::Center);
+        .style(
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(ratatui::layout::Alignment::Center);
     frame.render_widget(title, area);
 }
 
@@ -717,12 +746,15 @@ fn graph_render_width(app: &App, start: usize, end: usize) -> usize {
     app.visible[start.min(app.visible.len())..end.min(app.visible.len())]
         .iter()
         .filter_map(|row| match row {
-            VisibleRow::Commit { idx, prefix_override, depth } => {
-                Some(row_prefix(idx, prefix_override) + 2 * depth)
-            }
-            VisibleRow::DrillHeader { idx, prefix_override } => {
-                Some(row_prefix(idx, prefix_override))
-            }
+            VisibleRow::Commit {
+                idx,
+                prefix_override,
+                depth,
+            } => Some(row_prefix(idx, prefix_override) + 2 * depth),
+            VisibleRow::DrillHeader {
+                idx,
+                prefix_override,
+            } => Some(row_prefix(idx, prefix_override)),
             VisibleRow::CollapsedBranch { .. } => None,
         })
         .max()

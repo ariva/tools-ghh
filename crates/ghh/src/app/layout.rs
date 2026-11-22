@@ -232,7 +232,11 @@ impl App {
             _ => return None,
         };
         let actions = matches!(self.mode(), Mode::EditCommitMessage | Mode::EditCommitField);
-        Some(multiline_editor_popup_rect_in(lines, actions, Self::screen_area()?))
+        Some(multiline_editor_popup_rect_in(
+            lines,
+            actions,
+            Self::screen_area()?,
+        ))
     }
 
     pub fn confirm_popup_button_rects(&self) -> Option<(Rect, Rect, Rect)> {
@@ -283,11 +287,8 @@ impl App {
                 .map(|(c, _)| c.chars().count() as u16)
                 .collect();
             let inner_width = popup.width.saturating_sub(4);
-            let (placed, more) = layout_suggestions(
-                &widths,
-                self.search.suggestion_page_start,
-                inner_width,
-            );
+            let (placed, more) =
+                layout_suggestions(&widths, self.search.suggestion_page_start, inner_width);
             let line = row - (inner_y + VISUAL_ROWS + 1);
             let col = column - inner_x;
             if self.search.suggestion_page_start > 0
@@ -309,15 +310,13 @@ impl App {
                 }
             }
         }
-        let value_lens: [usize; 9] =
-            std::array::from_fn(|i| self.search.values[i].chars().count());
+        let value_lens: [usize; 9] = std::array::from_fn(|i| self.search.values[i].chars().count());
         // [ OR ] hides while the tail segment is empty (an " OR " was just
         // appended) — two joiners in a row make no sense.
-        let or_button_visible = crate::app::features::search::SearchState::multi_value_separator(
-            self.search.field,
-        )
-        .is_some()
-            && !self.search.active_prefix().trim().is_empty();
+        let or_button_visible =
+            crate::app::features::search::SearchState::multi_value_separator(self.search.field)
+                .is_some()
+                && !self.search.active_prefix().trim().is_empty();
         search_popup_hit_in(
             popup,
             self.search.reset_backup.is_some(),
@@ -334,7 +333,10 @@ impl App {
         if !self.show_help {
             return None;
         }
-        Some(help_popup_rect_in(self.help_lines().len(), Self::screen_area()?))
+        Some(help_popup_rect_in(
+            self.help_lines().len(),
+            Self::screen_area()?,
+        ))
     }
 
     pub fn popup_visible(&self) -> bool {
@@ -372,7 +374,10 @@ impl App {
     /// Suffix appended after the breadcrumb (filter indicator, non-clickable).
     pub(crate) fn list_title_suffix(&self) -> String {
         if self.search.filter_active && !self.search.matches.is_empty() {
-            format!("\u{25B8} filtered {} (f: remove) ", self.search.matches.len())
+            format!(
+                "\u{25B8} filtered {} (f: remove) ",
+                self.search.matches.len()
+            )
         } else {
             String::new()
         }
@@ -474,7 +479,10 @@ mod tests {
 
     #[test]
     fn commit_list_split_follows_custom_percentage() {
-        let custom = Splits { list_pct: 25, ..SPLITS };
+        let custom = Splits {
+            list_pct: 25,
+            ..SPLITS
+        };
         let (list, diff) = commit_list_regions_in(AREA, true, custom);
         assert_eq!(list.width, 30); // 25 % of 120
         assert_eq!(list.width + diff.width, 120);
@@ -487,7 +495,10 @@ mod tests {
         assert_eq!(info.bottom(), patch.y);
         assert!(commit_diff_regions_in(AREA, false, SPLITS).is_none());
         // A custom info percentage moves the boundary.
-        let custom = Splits { diff_info_pct: 70, ..SPLITS };
+        let custom = Splits {
+            diff_info_pct: 70,
+            ..SPLITS
+        };
         let (big_info, _) = commit_diff_regions_in(AREA, true, custom).unwrap();
         assert!(big_info.height > info.height);
     }
@@ -532,7 +543,10 @@ mod tests {
         // Root zone hits.
         assert_eq!(breadcrumb_hit_in(&all, 3), Some(BreadcrumbHit::Root));
         let (idx, x, _) = all.segments[2];
-        assert_eq!(breadcrumb_hit_in(&all, x), Some(BreadcrumbHit::Segment(idx)));
+        assert_eq!(
+            breadcrumb_hit_in(&all, x),
+            Some(BreadcrumbHit::Segment(idx))
+        );
 
         // Narrow pane, auto mode: tail shown, front pager present.
         let tail = breadcrumb_layout(&labels, None, 40);
@@ -540,14 +554,20 @@ mod tests {
         assert_eq!(tail.segments.last().unwrap().0, 5, "deepest level visible");
         assert!(tail.text.chars().count() <= 40);
         let front = tail.front.unwrap();
-        assert_eq!(breadcrumb_hit_in(&tail, front.0 + 1), Some(BreadcrumbHit::PagePrev));
+        assert_eq!(
+            breadcrumb_hit_in(&tail, front.0 + 1),
+            Some(BreadcrumbHit::PagePrev)
+        );
 
         // Paged to the front: back pager appears, prev/next starts sane.
         let head = breadcrumb_layout(&labels, Some(0), 40);
         assert!(head.front.is_none() && head.back.is_some());
         assert_eq!(head.segments.first().unwrap().0, 0);
         let back = head.back.unwrap();
-        assert_eq!(breadcrumb_hit_in(&head, back.0 + 1), Some(BreadcrumbHit::PageNext));
+        assert_eq!(
+            breadcrumb_hit_in(&head, back.0 + 1),
+            Some(BreadcrumbHit::PageNext)
+        );
         assert!(head.next_start > 0 && head.next_start < 6);
         // Middle window: both pagers.
         let mid = breadcrumb_layout(&labels, Some(2), 40);
@@ -620,7 +640,9 @@ pub fn breadcrumb_layout(
     };
     let start = match requested_start {
         Some(s) => s.min(n.saturating_sub(1)),
-        None => (0..n).find(|&s| fits_from(s)).unwrap_or(n.saturating_sub(1)),
+        None => (0..n)
+            .find(|&s| fits_from(s))
+            .unwrap_or(n.saturating_sub(1)),
     };
     // Greedy forward, reserving room for the trailing pager while more remain.
     let mut shown = 0usize;
@@ -790,8 +812,8 @@ pub fn layout_field_line(
     let window_len = shown.min(value_chars - start);
     let left = (start > 0).then_some(label);
     let text_x = label + if left.is_some() { MORE } else { 0 };
-    let right = (start + window_len < value_chars)
-        .then_some(text_x + window_len as u16 + cursor_cell + 1);
+    let right =
+        (start + window_len < value_chars).then_some(text_x + window_len as u16 + cursor_cell + 1);
     FieldLineLayout {
         window_start: start,
         window_len,
@@ -870,15 +892,19 @@ pub fn layout_suggestions(
                 break;
             }
         }
-        placed.push(PlacedSuggestion { index: i, line, x, width });
+        placed.push(PlacedSuggestion {
+            index: i,
+            line,
+            x,
+            width,
+        });
         x += width + GAP;
         i += 1;
     }
     if i < widths.len() {
         // Make room for "..." on the last used line.
         while let Some(last) = placed.last().copied() {
-            if last.line < SUGGESTION_LINES - 1 || last.x + last.width + GAP + MORE <= inner_width
-            {
+            if last.line < SUGGESTION_LINES - 1 || last.x + last.width + GAP + MORE <= inner_width {
                 break;
             }
             placed.pop();
@@ -968,7 +994,6 @@ pub fn file_action_zones() -> [(u16, u16); 5] {
 /// Checkbox label on the row above the popup buttons; "[x] " precedes it.
 pub const FULL_HISTORY_LABEL: &str =
     "Full history file search (slower, but captures files changed in merges)";
-
 
 /// Pure geometry for [`App::search_popup_hit`] — must mirror
 /// `render_search_popup` (inner margin 2/1, 8 field rows, buttons at
@@ -1074,8 +1099,8 @@ pub fn search_popup_hit_in(
             return Some(SearchPopupHit::Field(index));
         }
         let active = index == active_field_index;
-        let multi = crate::app::features::search::SearchState::multi_value_separator(field)
-            .is_some();
+        let multi =
+            crate::app::features::search::SearchState::multi_value_separator(field).is_some();
         let layout = layout_field_line(
             inner_width,
             value_lens[index],
@@ -1132,8 +1157,16 @@ pub fn search_popup_hit_in(
         return Some(SearchPopupHit::FullHistoryToggle);
     }
     if row == inner_y + VISUAL_ROWS + SUGGESTION_LINES + 5 {
-        let labels =
-            ["Search", "Cancel", if has_undo_reset { "Undo Reset" } else { "Reset" }, "Help"];
+        let labels = [
+            "Search",
+            "Cancel",
+            if has_undo_reset {
+                "Undo Reset"
+            } else {
+                "Reset"
+            },
+            "Help",
+        ];
         let mut x = inner_x;
         for (button, label) in labels.into_iter().enumerate() {
             let width = label.len() as u16 + 4; // "[ label ]"
@@ -1174,10 +1207,18 @@ mod search_hit_tests {
         let widths = vec![10u16, 10, 10, 10, 10, 10, 10, 10, 10, 10];
         // Page 2 starts at 6 (see wrap test): first line indented past "...".
         let (placed, _) = super::layout_suggestions(&widths, 6, 40);
-        assert_eq!(placed[0].x, super::SUGGESTION_INDENT + 4, "room for back pager");
+        assert_eq!(
+            placed[0].x,
+            super::SUGGESTION_INDENT + 4,
+            "room for back pager"
+        );
         // Prev from page 2 lands back at page 1's start.
         assert_eq!(previous_page_start(&widths, 40, 6), 0);
-        assert_eq!(previous_page_start(&widths, 40, 0), 0, "no page before the first");
+        assert_eq!(
+            previous_page_start(&widths, 40, 0),
+            0,
+            "no page before the first"
+        );
     }
 
     #[test]
@@ -1199,7 +1240,10 @@ mod search_hit_tests {
             long.or_x,
             Some(60 - super::CLEAR_MARK_WIDTH - super::OR_BUTTON_WIDTH - 1)
         );
-        assert!(long.window_start + long.window_len >= 100, "cursor visible at end");
+        assert!(
+            long.window_start + long.window_len >= 100,
+            "cursor visible at end"
+        );
 
         // Cursor at start of a long value: no left pager, right "..." shown.
         let head = layout_field_line(60, 100, Some(0), false, true, 16);
@@ -1211,10 +1255,7 @@ mod search_hit_tests {
         assert_eq!(char_pos_at(head, 100, head.text_x), 0);
         assert_eq!(char_pos_at(head, 100, head.text_x + 5), 5);
         let mid = layout_field_line(60, 100, Some(50), false, true, 16);
-        assert_eq!(
-            char_pos_at(mid, 100, mid.text_x + 3),
-            mid.window_start + 3
-        );
+        assert_eq!(char_pos_at(mid, 100, mid.text_x + 3), mid.window_start + 3);
     }
 
     /// Repeated paging walks the whole value: cursor steps drive the window
@@ -1259,7 +1300,10 @@ mod search_hit_tests {
         let mut lens = [0usize; 9];
         lens[0] = 5; // Quick holds "hello"
         // inner starts at (12, 6); visual rows 6..14; buttons at row 18.
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 20, 6), Some(SearchPopupHit::Field(0)));
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 20, 6),
+            Some(SearchPopupHit::Field(0))
+        );
         // Bottom visual row (7) is Tag (logical index 8).
         assert_eq!(
             search_popup_hit_in(popup, false, &lens, 0, 0, true, 20, 13),
@@ -1283,12 +1327,18 @@ mod search_hit_tests {
         }
         // Past the buttons is plain field focus; with the OR button hidden
         // (empty tail segment) the clear moves back left.
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 53, 6), Some(SearchPopupHit::Field(0)));
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 53, 6),
+            Some(SearchPopupHit::Field(0))
+        );
         assert_eq!(
             search_popup_hit_in(popup, false, &lens, 0, 0, false, 36, 6),
             Some(SearchPopupHit::ClearField(0))
         );
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 30, 7), Some(SearchPopupHit::Field(1)));
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 30, 7),
+            Some(SearchPopupHit::Field(1))
+        );
 
         // The shared date row (visual row 4 = terminal row 10): left of the
         // separator is From, right is To; the row's [ clear ] targets both.
@@ -1297,7 +1347,16 @@ mod search_hit_tests {
             Some(SearchPopupHit::Field(SearchField::DateFrom.index()))
         );
         assert_eq!(
-            search_popup_hit_in(popup, false, &lens, 0, 0, true, 12 + super::DATE_TO_X + 2, 10),
+            search_popup_hit_in(
+                popup,
+                false,
+                &lens,
+                0,
+                0,
+                true,
+                12 + super::DATE_TO_X + 2,
+                10
+            ),
             Some(SearchPopupHit::Field(SearchField::DateTo.index()))
         );
         let mut with_date = lens;
@@ -1314,12 +1373,27 @@ mod search_hit_tests {
         );
 
         // Buttons at row 6 + 8 + 3 + 5 = 22: [ Search ] from x=12 width 10.
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 12, 22), Some(SearchPopupHit::Button(0)));
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 25, 22), Some(SearchPopupHit::Button(1)));
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 38, 22), Some(SearchPopupHit::Button(2)));
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 12, 22),
+            Some(SearchPopupHit::Button(0))
+        );
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 25, 22),
+            Some(SearchPopupHit::Button(1))
+        );
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 38, 22),
+            Some(SearchPopupHit::Button(2))
+        );
         // Gap between buttons hits nothing.
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 22, 22), None);
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 5, 5), None);
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 22, 22),
+            None
+        );
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 5, 5),
+            None
+        );
     }
 
     /// File-option rows (action selector + checkbox, above the buttons) are
@@ -1330,7 +1404,10 @@ mod search_hit_tests {
         let popup = Rect::new(10, 5, 70, 22);
         let lens = [0usize; 9];
         // Checkbox row 6 + 8 + 3 + 3 = 20. Empty file field: nothing there.
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 12, 20), None);
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 12, 20),
+            None
+        );
         let mut with_file = lens;
         with_file[SearchField::File.index()] = 8;
         assert_eq!(
@@ -1339,11 +1416,17 @@ mod search_hit_tests {
         );
         // Past the label is dead space.
         let past = 12 + 4 + super::FULL_HISTORY_LABEL.len() as u16;
-        assert_eq!(search_popup_hit_in(popup, false, &with_file, 0, 0, true, past, 20), None);
+        assert_eq!(
+            search_popup_hit_in(popup, false, &with_file, 0, 0, true, past, 20),
+            None
+        );
 
         // Action row 6 + 8 + 3 + 2 = 19: options at their zones, gaps dead.
         let zones = super::file_action_zones();
-        assert_eq!(search_popup_hit_in(popup, false, &with_file, 0, 0, true, 12, 19), None);
+        assert_eq!(
+            search_popup_hit_in(popup, false, &with_file, 0, 0, true, 12, 19),
+            None
+        );
         for (i, (x, width)) in zones.into_iter().enumerate() {
             assert_eq!(
                 search_popup_hit_in(popup, false, &with_file, 0, 0, true, 12 + x, 19),
@@ -1357,6 +1440,9 @@ mod search_hit_tests {
             );
         }
         // Empty file field: the action row is inert too.
-        assert_eq!(search_popup_hit_in(popup, false, &lens, 0, 0, true, 12 + zones[0].0, 19), None);
+        assert_eq!(
+            search_popup_hit_in(popup, false, &lens, 0, 0, true, 12 + zones[0].0, 19),
+            None
+        );
     }
 }

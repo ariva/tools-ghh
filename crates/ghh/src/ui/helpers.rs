@@ -15,17 +15,17 @@ pub fn display_glyph(ch: char) -> char {
         return ch;
     }
     match ch {
-        '\u{25CF}' => 'o',        // ● commit
-        '\u{25CB}' => 'O',        // ○ HEAD commit
-        '\u{25BC}' => 'v',        // ▼ merge (expanded)
-        '\u{25BA}' => '>',        // ► merge (collapsed)
-        '\u{256D}' | '\u{256F}' => '/', // ╭ ╯
+        '\u{25CF}' => 'o',               // ● commit
+        '\u{25CB}' => 'O',               // ○ HEAD commit
+        '\u{25BC}' => 'v',               // ▼ merge (expanded)
+        '\u{25BA}' => '>',               // ► merge (collapsed)
+        '\u{256D}' | '\u{256F}' => '/',  // ╭ ╯
         '\u{256E}' | '\u{2570}' => '\\', // ╮ ╰
-        '\u{2502}' | '\u{250A}' => '|', // │ ┊
-        '\u{2500}' => '-',        // ─
-        '\u{2524}' => '+',        // ┤
-        '\u{2191}' => '^',        // ↑
-        '\u{2193}' => 'v',        // ↓
+        '\u{2502}' | '\u{250A}' => '|',  // │ ┊
+        '\u{2500}' => '-',               // ─
+        '\u{2524}' => '+',               // ┤
+        '\u{2191}' => '^',               // ↑
+        '\u{2193}' => 'v',               // ↓
         other => other,
     }
 }
@@ -53,7 +53,11 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
 /// "..." marking the skipped prefix. Result is at most `max_chars` chars.
 pub fn truncate_keeping_match(s: &str, max_chars: usize, ranges: &[(usize, usize)]) -> String {
     let count = s.chars().count();
-    let plain_visible = if count <= max_chars { max_chars } else { max_chars.saturating_sub(3) };
+    let plain_visible = if count <= max_chars {
+        max_chars
+    } else {
+        max_chars.saturating_sub(3)
+    };
     let first = match ranges.first() {
         Some(&(start, _)) if start >= plain_visible => (start, ranges[0].1),
         _ => return truncate(s, max_chars),
@@ -69,7 +73,11 @@ pub fn truncate_keeping_match(s: &str, max_chars: usize, ranges: &[(usize, usize
     let tail_cut = window_start + body < count;
     let take = if tail_cut { body - 3 } else { body };
     let shown: String = s.chars().skip(window_start).take(take).collect();
-    if tail_cut { format!("...{shown}...") } else { format!("...{shown}") }
+    if tail_cut {
+        format!("...{shown}...")
+    } else {
+        format!("...{shown}")
+    }
 }
 
 /// Split `text` into spans: `base` style everywhere, `hl` over the given
@@ -91,10 +99,16 @@ pub fn highlight_spans(
         let start = start.min(chars.len());
         let end = end.min(chars.len());
         if start > pos {
-            spans.push(Span::styled(chars[pos..start].iter().collect::<String>(), base));
+            spans.push(Span::styled(
+                chars[pos..start].iter().collect::<String>(),
+                base,
+            ));
         }
         if end > start {
-            spans.push(Span::styled(chars[start..end].iter().collect::<String>(), hl));
+            spans.push(Span::styled(
+                chars[start..end].iter().collect::<String>(),
+                hl,
+            ));
         }
         pos = pos.max(end);
     }
@@ -122,7 +136,10 @@ mod highlight_tests {
         // No hits -> plain truncate with trailing "...".
         assert_eq!(truncate_keeping_match(text, 10, &[]), "prefix ...");
         // Degenerate width falls back to plain truncate without panicking.
-        assert_eq!(truncate_keeping_match(text, 4, &[(21, 27)]).chars().count(), 4);
+        assert_eq!(
+            truncate_keeping_match(text, 4, &[(21, 27)]).chars().count(),
+            4
+        );
     }
 
     #[test]
@@ -134,7 +151,10 @@ mod highlight_tests {
             .iter()
             .map(|s| (s.content.as_ref(), s.style == hl))
             .collect();
-        assert_eq!(parts, vec![("fix ", false), ("auth", true), (" bug", false)]);
+        assert_eq!(
+            parts,
+            vec![("fix ", false), ("auth", true), (" bug", false)]
+        );
         // No ranges → single base span, text unchanged.
         let plain = highlight_spans("abc", base, hl, &[]);
         assert_eq!(plain.len(), 1);
@@ -214,16 +234,36 @@ mod selection_geometry_tests {
     #[test]
     fn word_bounds_expand_over_the_word_only() {
         let buffer = buffer_with("fix search bug");
-        assert_eq!(word_bounds_at(&buffer, 0, 29, 5, 0), Some((4, 9)), "inside 'search'");
-        assert_eq!(word_bounds_at(&buffer, 0, 29, 0, 0), Some((0, 2)), "'fix' at edge");
+        assert_eq!(
+            word_bounds_at(&buffer, 0, 29, 5, 0),
+            Some((4, 9)),
+            "inside 'search'"
+        );
+        assert_eq!(
+            word_bounds_at(&buffer, 0, 29, 0, 0),
+            Some((0, 2)),
+            "'fix' at edge"
+        );
         assert_eq!(word_bounds_at(&buffer, 0, 29, 3, 0), None, "blank cell");
     }
 
     #[test]
     fn next_word_end_skips_gap_and_stops_at_word_end() {
         let buffer = buffer_with("fix search bug");
-        assert_eq!(next_word_end(&buffer, 29, 0, 2), Some(9), "from 'fix' to end of 'search'");
-        assert_eq!(next_word_end(&buffer, 29, 0, 9), Some(13), "to end of 'bug'");
-        assert_eq!(next_word_end(&buffer, 29, 0, 13), None, "nothing right of the last word");
+        assert_eq!(
+            next_word_end(&buffer, 29, 0, 2),
+            Some(9),
+            "from 'fix' to end of 'search'"
+        );
+        assert_eq!(
+            next_word_end(&buffer, 29, 0, 9),
+            Some(13),
+            "to end of 'bug'"
+        );
+        assert_eq!(
+            next_word_end(&buffer, 29, 0, 13),
+            None,
+            "nothing right of the last word"
+        );
     }
 }

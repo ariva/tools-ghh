@@ -7,7 +7,6 @@ mod stats;
 mod tracer;
 mod ui;
 
-use anyhow::Result;
 use automation::{AutomationCommand, load_automation_commands};
 use clap::Parser;
 use crossterm::{
@@ -149,7 +148,30 @@ struct Cli {
     save_local_settings: bool,
 }
 
-fn main() -> Result<()> {
+/// Everything that can end the program: each layer's error, plus terminal I/O.
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    Git(#[from] git::Error),
+    #[error(transparent)]
+    Automation(#[from] automation::Error),
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
+fn main() -> std::process::ExitCode {
+    match run() {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<()> {
     let process_start = Instant::now();
     // libgit2's global object cache defaults to 256 MB; walking 568k commits
     // fills it with parsed commit objects we never re-read. Cap it small
@@ -243,7 +265,9 @@ fn run_tui(
     let loaded = settings::Settings::load(&repo_path);
     let resolved = &loaded.resolved;
     let logs_config = resolved.logs_normalized();
-    let debug_level = resolved.debug_level().and_then(events::TraceLevel::from_setting);
+    let debug_level = resolved
+        .debug_level()
+        .and_then(events::TraceLevel::from_setting);
     let file_level = file_trace_level(
         debug_level,
         logs_config
@@ -277,7 +301,7 @@ fn run_tui(
     log_startup_traces();
 
     let app_init_started = Instant::now();
-    let mut app = app::App::new(repo_path, yes)?;
+    let mut app = app::App::new(repo_path, yes);
     app.settings.save_local |= save_local_settings;
     if let Some(perf) = perf.as_deref_mut() {
         perf.mark_app_init(app_init_started.elapsed());
@@ -822,11 +846,20 @@ mod cli_tests {
     #[test]
     fn repo_path_positional_flag_or_default() {
         let cli = Cli::try_parse_from(["ghh"]).unwrap();
-        assert_eq!(cli.repo_positional.clone().unwrap_or(cli.path.clone()), std::path::PathBuf::from("."));
+        assert_eq!(
+            cli.repo_positional.clone().unwrap_or(cli.path.clone()),
+            std::path::PathBuf::from(".")
+        );
         let cli = Cli::try_parse_from(["ghh", "/tmp/repo"]).unwrap();
-        assert_eq!(cli.repo_positional.clone().unwrap_or(cli.path.clone()), std::path::PathBuf::from("/tmp/repo"));
+        assert_eq!(
+            cli.repo_positional.clone().unwrap_or(cli.path.clone()),
+            std::path::PathBuf::from("/tmp/repo")
+        );
         let cli = Cli::try_parse_from(["ghh", "--path", "/tmp/repo"]).unwrap();
-        assert_eq!(cli.repo_positional.clone().unwrap_or(cli.path.clone()), std::path::PathBuf::from("/tmp/repo"));
+        assert_eq!(
+            cli.repo_positional.clone().unwrap_or(cli.path.clone()),
+            std::path::PathBuf::from("/tmp/repo")
+        );
         // Both at once is a user error, not a silent precedence.
         assert!(Cli::try_parse_from(["ghh", "/a", "--path", "/b"]).is_err());
     }

@@ -1,5 +1,5 @@
+use crate::git::error::{Error, Result};
 use crate::git::models::{FileStatus, StageState};
-use anyhow::{Result, anyhow};
 use git2::Repository;
 use std::path::Path;
 
@@ -166,9 +166,7 @@ pub fn get_file_diff(repo_path: &Path, file: &FileStatus) -> Result<String> {
     let repo = Repository::discover(repo_path)?;
 
     if file.stage_state == StageState::Untracked {
-        let workdir = repo
-            .workdir()
-            .ok_or_else(|| anyhow!("No working directory"))?;
+        let workdir = repo.workdir().ok_or(Error::NoWorkdir)?;
         let full_path = workdir.join(&file.path);
         return match std::fs::read_to_string(&full_path) {
             Ok(content) => {

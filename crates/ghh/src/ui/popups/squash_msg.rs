@@ -16,11 +16,8 @@ pub fn render_multiline_editor_popup(
     show_actions: bool,
     changed: bool,
 ) {
-    let popup = crate::app::layout::multiline_editor_popup_rect_in(
-        editor.lines.len(),
-        show_actions,
-        area,
-    );
+    let popup =
+        crate::app::layout::multiline_editor_popup_rect_in(editor.lines.len(), show_actions, area);
     frame.render_widget(Clear, popup);
 
     let mode_label = if editor.insert_mode {

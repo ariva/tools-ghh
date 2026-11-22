@@ -31,7 +31,9 @@ impl App {
             Mode::Staging => self
                 .staging
                 .as_ref()
-                .map(|staging| staging.focus == crate::app::features::staging::StagingFocus::CommitMessage)
+                .map(|staging| {
+                    staging.focus == crate::app::features::staging::StagingFocus::CommitMessage
+                })
                 .unwrap_or(false),
             Mode::EditCommitMessage | Mode::EditCommitField => self.commit_msg_editor.is_some(),
             Mode::SquashMessage => self.squash_msg.is_some(),

@@ -31,7 +31,9 @@ pub fn render_help_popup(frame: &mut Frame, title: &str, items: &[String], area:
     frame.render_widget(
         Paragraph::new(Span::styled(
             "[X]",
-            Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::LightRed)
+                .add_modifier(Modifier::BOLD),
         )),
         crate::app::layout::help_close_rect(popup),
     );
@@ -84,7 +86,9 @@ mod tests {
         assert_eq!(ok.x, popup.x + 2, "buttons left-aligned like other popups");
         // The Enter/Esc hint line is gone — the selected [ OK ] says it all.
         for y in 0..24u16 {
-            let row: String = (0..80).map(|x| buffer[(x, y)].symbol().to_string()).collect();
+            let row: String = (0..80)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect();
             assert!(!row.contains("Enter"), "stale Enter/Esc hint drawn");
         }
     }

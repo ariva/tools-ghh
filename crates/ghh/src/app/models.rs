@@ -104,7 +104,10 @@ impl ConfirmAction {
                 "Already pushed? A force-push will be needed.".into(),
             ],
             ConfirmAction::MoveConflict { stopped_at } => vec![
-                format!("Rebase stopped at {}", stopped_at.chars().take(36).collect::<String>()),
+                format!(
+                    "Rebase stopped at {}",
+                    stopped_at.chars().take(36).collect::<String>()
+                ),
                 "Fix the conflict and stage the files (git add).".into(),
                 "Yes: continue    No: abort, restore old history".into(),
                 "Esc: decide later (m reopens this)".into(),
@@ -485,7 +488,11 @@ impl MoveState {
     /// normally shows `idx` shows the returned commit instead.
     pub fn display_idx(&self, idx: usize) -> usize {
         let (lo, hi) = (self.from.min(self.pos), self.from.max(self.pos));
-        let Some(k) = self.chain[lo..=hi].iter().position(|&i| i == idx).map(|k| k + lo) else {
+        let Some(k) = self.chain[lo..=hi]
+            .iter()
+            .position(|&i| i == idx)
+            .map(|k| k + lo)
+        else {
             return idx;
         };
         if k == self.pos {
@@ -504,7 +511,11 @@ mod tests {
     fn move_state_previews_shifted_rows() {
         let chain = vec![10, 11, 12, 13];
         let shown = |from, pos| {
-            let m = super::MoveState { chain: chain.clone(), from, pos };
+            let m = super::MoveState {
+                chain: chain.clone(),
+                from,
+                pos,
+            };
             chain.iter().map(|&i| m.display_idx(i)).collect::<Vec<_>>()
         };
         assert_eq!(shown(1, 1), [10, 11, 12, 13]);

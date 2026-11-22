@@ -100,10 +100,7 @@ fn render_and_advance_lanes(
         let (ch, color_lane) = if lane == commit_lane {
             // 'M' for every merge, even when its side lanes are hidden (e.g.
             // drill view) — the glyph marks collapsibility, like TreeEngine.
-            (
-                if is_merge { 'M' } else { '*' },
-                commit_lane.min(254) as u8,
-            )
+            (if is_merge { 'M' } else { '*' }, commit_lane.min(254) as u8)
         } else if merge_here {
             (
                 if lane < commit_lane { '┌' } else { '┐' },
@@ -140,7 +137,6 @@ pub fn compute_graph_prefixes(commits: &mut [CommitInfo]) {
     let len = commits.len();
     extend_graph_prefixes(commits, 0, len, &mut columns);
 }
-
 
 /// Cap stored/rendered graph width. Terminals can't usefully show more than
 /// ~32 lanes, but wide repos produce prefixes of 300+ lanes; storing them all
@@ -224,10 +220,10 @@ pub fn find_branch_commit_indices(commits: &[CommitInfo], merge_idx: usize) -> V
     let mut pending = 0usize;
 
     let bump = |flags: &mut HashMap<usize, u8>,
-                    heap: &mut BinaryHeap<Reverse<usize>>,
-                    pending: &mut usize,
-                    idx: usize,
-                    add: u8| {
+                heap: &mut BinaryHeap<Reverse<usize>>,
+                pending: &mut usize,
+                idx: usize,
+                add: u8| {
         let entry = flags.entry(idx).or_insert(0);
         let old = *entry;
         let new = old | add;
@@ -252,7 +248,9 @@ pub fn find_branch_commit_indices(commits: &[CommitInfo], merge_idx: usize) -> V
 
     let mut branch: Vec<usize> = Vec::new();
     while pending > 0 {
-        let Some(Reverse(idx)) = heap.pop() else { break };
+        let Some(Reverse(idx)) = heap.pop() else {
+            break;
+        };
         let f = flags[&idx];
         if f & PRIMARY == 0 {
             pending -= 1;
@@ -412,7 +410,9 @@ pub fn compute_merge_points(commits: &[crate::git::CommitInfo], head_idx: usize)
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_merge_points, find_branch_commit_indices, for_each_visible_prefix_in_window};
+    use super::{
+        compute_merge_points, find_branch_commit_indices, for_each_visible_prefix_in_window,
+    };
     use crate::git::models::CommitInfo;
 
     fn commit(parents: Vec<usize>) -> CommitInfo {
@@ -446,7 +446,10 @@ mod tests {
         assert_eq!(find_branch_commit_indices(&commits, 0), vec![2, 3]);
         // Non-merge and out-of-range: empty.
         assert_eq!(find_branch_commit_indices(&commits, 1), Vec::<usize>::new());
-        assert_eq!(find_branch_commit_indices(&commits, 99), Vec::<usize>::new());
+        assert_eq!(
+            find_branch_commit_indices(&commits, 99),
+            Vec::<usize>::new()
+        );
     }
 
     #[test]
@@ -524,4 +527,3 @@ mod tests {
         assert_eq!(mp[5], 4); // older PR -> merged via M1, NOT re-stamped by M2
     }
 }
-

@@ -93,7 +93,10 @@ impl StatsCollector {
             .filter(|(_, m)| m.max_ms() >= STALL_MS)
             .collect();
         problems.sort_by(|a, b| b.1.max_ms().total_cmp(&a.1.max_ms()));
-        let _ = writeln!(out, "=========  PROBLEM AREAS (max >= {STALL_MS:.0}ms) ==========");
+        let _ = writeln!(
+            out,
+            "=========  PROBLEM AREAS (max >= {STALL_MS:.0}ms) =========="
+        );
         if problems.is_empty() {
             let _ = writeln!(out, "none");
         } else {
@@ -136,6 +139,12 @@ mod tests {
         let mut stats = StatsCollector::new(Instant::now());
         stats.record_custom("quick", Duration::from_millis(2));
         let report = stats.report();
-        assert!(report.split("PROBLEM AREAS").nth(1).unwrap().contains("none"));
+        assert!(
+            report
+                .split("PROBLEM AREAS")
+                .nth(1)
+                .unwrap()
+                .contains("none")
+        );
     }
 }

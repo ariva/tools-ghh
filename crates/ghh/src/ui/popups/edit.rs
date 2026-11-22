@@ -132,7 +132,6 @@ fn render_message_block(frame: &mut Frame, edit: &EditState, inner: Rect) {
             },
         );
     }
-
 }
 
 /// One-line fields (author name/email, date): label + value with a cursor
@@ -221,7 +220,11 @@ mod tests {
             .unwrap();
         let buffer = terminal.backend().buffer().clone();
         (0..30)
-            .map(|y| (0..100).map(|x| buffer[(x, y)].symbol().to_string()).collect())
+            .map(|y| {
+                (0..100)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect()
+            })
             .collect()
     }
 
@@ -257,6 +260,9 @@ mod tests {
             .into_iter()
             .find(|row| row.contains("ali") && row.contains("ce@example.com"))
             .expect("email row with cursor");
-        assert!(email_row.contains('\u{2502}'), "cursor bar in {email_row:?}");
+        assert!(
+            email_row.contains('\u{2502}'),
+            "cursor bar in {email_row:?}"
+        );
     }
 }

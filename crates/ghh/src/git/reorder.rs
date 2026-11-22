@@ -5,7 +5,7 @@
 //! conflict leaves the standard rebase state behind: the user resolves it
 //! with normal tools and we (or plain git) continue or abort.
 
-use anyhow::{Result, anyhow};
+use crate::git::error::{Error, Result};
 use git2::{Repository, RepositoryState};
 use std::path::Path;
 use std::process::{Command, Output};
@@ -46,9 +46,7 @@ pub fn movable_chain(repo_path: &Path, hash: &str) -> Result<Vec<String>> {
         }
     }
     if !chain.iter().any(|h| h == hash) {
-        return Err(anyhow!(
-            "Only commits above the newest merge on the current branch can be moved"
-        ));
+        return Err(Error::NotMovable);
     }
     Ok(chain)
 }
@@ -57,13 +55,15 @@ pub fn movable_chain(repo_path: &Path, hash: &str) -> Result<Vec<String>> {
 /// ORIGINAL order) up to HEAD, picking `todo` (oldest first) instead.
 pub fn move_commit(repo_path: &Path, lowest_hash: &str, todo: &[String]) -> Result<RebaseOutcome> {
     if rebase_in_progress(repo_path) {
-        return Err(anyhow!("A rebase is already in progress"));
+        return Err(Error::RebaseInProgress);
     }
-    let status = git(repo_path, &["status", "--porcelain", "--untracked-files=no"]).output()?;
+    let status = git(
+        repo_path,
+        &["status", "--porcelain", "--untracked-files=no"],
+    )
+    .output()?;
     if !status.stdout.is_empty() {
-        return Err(anyhow!(
-            "Working tree has uncommitted changes — commit or stash them before moving commits"
-        ));
+        return Err(Error::DirtyWorkTree);
     }
 
     let repo = Repository::discover(repo_path)?;
@@ -74,11 +74,14 @@ pub fn move_commit(repo_path: &Path, lowest_hash: &str, todo: &[String]) -> Resu
     std::fs::write(&todo_path, todo_text)?;
 
     // git runs `sh -c '<editor> "$@"' <editor> <todo file>`: cp our todo over git's.
-    let output = git(repo_path, &["rebase", "-i", "--committer-date-is-author-date"])
-        .arg(base.as_deref().unwrap_or("--root"))
-        .env("GIT_SEQUENCE_EDITOR", "cp \"$GHH_TODO_FILE\"")
-        .env("GHH_TODO_FILE", &todo_path)
-        .output();
+    let output = git(
+        repo_path,
+        &["rebase", "-i", "--committer-date-is-author-date"],
+    )
+    .arg(base.as_deref().unwrap_or("--root"))
+    .env("GIT_SEQUENCE_EDITOR", "cp \"$GHH_TODO_FILE\"")
+    .env("GHH_TODO_FILE", &todo_path)
+    .output();
     let _ = std::fs::remove_file(&todo_path);
     outcome(repo_path, output?)
 }
@@ -93,14 +96,18 @@ pub fn rebase_abort(repo_path: &Path) -> Result<()> {
     if output.status.success() {
         Ok(())
     } else {
-        Err(anyhow!("{}", String::from_utf8_lossy(&output.stderr).trim()))
+        Err(Error::cli(&output.stderr))
     }
 }
 
 fn git(repo_path: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("git");
     // GIT_EDITOR=true: never block on a commit-message editor behind the TUI.
-    command.arg("-C").arg(repo_path).args(args).env("GIT_EDITOR", "true");
+    command
+        .arg("-C")
+        .arg(repo_path)
+        .args(args)
+        .env("GIT_EDITOR", "true");
     command
 }
 
@@ -109,12 +116,16 @@ fn outcome(repo_path: &Path, output: Output) -> Result<RebaseOutcome> {
         return Ok(RebaseOutcome::Done);
     }
     if !rebase_in_progress(repo_path) {
-        return Err(anyhow!("{}", String::from_utf8_lossy(&output.stderr).trim()));
+        return Err(Error::cli(&output.stderr));
     }
     let stopped_at = Repository::discover(repo_path)
         .ok()
         .and_then(|repo| {
-            let commit = repo.revparse_single("REBASE_HEAD").ok()?.peel_to_commit().ok()?;
+            let commit = repo
+                .revparse_single("REBASE_HEAD")
+                .ok()?
+                .peel_to_commit()
+                .ok()?;
             let hash = commit.id().to_string();
             Some(format!("{} {}", &hash[..7], commit.summary().unwrap_or("")))
         })
@@ -144,11 +155,22 @@ mod tests {
             index.add_path(Path::new(file)).unwrap();
             index.write().unwrap();
             let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
-            let parents: Vec<git2::Commit> =
-                repo.head().ok().map(|h| h.peel_to_commit().unwrap()).into_iter().collect();
+            let parents: Vec<git2::Commit> = repo
+                .head()
+                .ok()
+                .map(|h| h.peel_to_commit().unwrap())
+                .into_iter()
+                .collect();
             let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
             let oid = repo
-                .commit(Some("HEAD"), &sig, &sig, &format!("c{i}"), &tree, &parent_refs)
+                .commit(
+                    Some("HEAD"),
+                    &sig,
+                    &sig,
+                    &format!("c{i}"),
+                    &tree,
+                    &parent_refs,
+                )
                 .unwrap();
             hashes.push(oid.to_string());
         }
@@ -157,7 +179,10 @@ mod tests {
 
     fn subjects(dir: &Path) -> String {
         let out = git(dir, &["log", "--format=%s"]).output().unwrap();
-        String::from_utf8_lossy(&out.stdout).split_whitespace().collect::<Vec<_>>().join(" ")
+        String::from_utf8_lossy(&out.stdout)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     #[test]
@@ -166,7 +191,10 @@ mod tests {
         assert_eq!(movable_chain(&dir, &h[1]).unwrap().len(), 4);
         // Move c1 above c2: rebase from c1 with todo c2, c1, c3.
         let todo = vec![h[2].clone(), h[1].clone(), h[3].clone()];
-        assert_eq!(move_commit(&dir, &h[1], &todo).unwrap(), RebaseOutcome::Done);
+        assert_eq!(
+            move_commit(&dir, &h[1], &todo).unwrap(),
+            RebaseOutcome::Done
+        );
         assert_eq!(subjects(&dir), "c3 c1 c2 c0");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -176,14 +204,25 @@ mod tests {
         let (dir, h) = repo_with("conflict", &[("f", "0"), ("f", "1"), ("f", "2")]);
         let todo = vec![h[2].clone(), h[1].clone()];
         let result = move_commit(&dir, &h[1], &todo).unwrap();
-        assert!(matches!(result, RebaseOutcome::Conflict(ref at) if at.ends_with("c2")), "{result:?}");
+        assert!(
+            matches!(result, RebaseOutcome::Conflict(ref at) if at.ends_with("c2")),
+            "{result:?}"
+        );
         assert!(rebase_in_progress(&dir));
         // Unresolved: continue reports the conflict again instead of failing hard.
-        assert!(matches!(rebase_continue(&dir).unwrap(), RebaseOutcome::Conflict(_)));
+        assert!(matches!(
+            rebase_continue(&dir).unwrap(),
+            RebaseOutcome::Conflict(_)
+        ));
         rebase_abort(&dir).unwrap();
         assert!(!rebase_in_progress(&dir));
         assert_eq!(subjects(&dir), "c2 c1 c0");
-        let head = Repository::open(&dir).unwrap().head().unwrap().target().unwrap();
+        let head = Repository::open(&dir)
+            .unwrap()
+            .head()
+            .unwrap()
+            .target()
+            .unwrap();
         assert_eq!(head.to_string(), h[2]);
         let _ = std::fs::remove_dir_all(&dir);
     }

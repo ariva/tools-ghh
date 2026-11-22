@@ -263,15 +263,11 @@ impl App {
                 self.jump_to_merge_point();
                 self.mark_perf_action("commit_list.action.jump_merge_point");
             }
-            KeyCode::Char(c @ ('{' | '}'))
-                if self.commit_list_focus == CommitListFocus::List =>
-            {
+            KeyCode::Char(c @ ('{' | '}')) if self.commit_list_focus == CommitListFocus::List => {
                 self.jump_labeled(c == '}');
                 self.mark_perf_action("commit_list.action.jump_labeled");
             }
-            KeyCode::Char(c @ ('[' | ']'))
-                if self.commit_list_focus == CommitListFocus::List =>
-            {
+            KeyCode::Char(c @ ('[' | ']')) if self.commit_list_focus == CommitListFocus::List => {
                 self.jump_parent_or_child(c == '[');
                 self.mark_perf_action("commit_list.action.jump_parent_child");
             }
@@ -462,7 +458,10 @@ impl App {
         // Conflict popup: Esc must not abort the rebase — it only hides the
         // popup so the user can go fix things (m reopens it).
         if key.code == KeyCode::Esc
-            && matches!(self.mode(), Mode::Confirm(ConfirmAction::MoveConflict { .. }, _))
+            && matches!(
+                self.mode(),
+                Mode::Confirm(ConfirmAction::MoveConflict { .. }, _)
+            )
         {
             self.nav.pop();
             return false;

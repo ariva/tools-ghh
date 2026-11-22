@@ -348,8 +348,12 @@ impl App {
             }
             None => {
                 self.status_message = Some(
-                    if to_parent { "No parent (root commit)." } else { "No child in view." }
-                        .into(),
+                    if to_parent {
+                        "No parent (root commit)."
+                    } else {
+                        "No child in view."
+                    }
+                    .into(),
                 );
             }
         }
@@ -484,13 +488,10 @@ impl App {
         if let Some(cached) = self.file_status_cache.get(&hash) {
             return *cached;
         }
-        let status = git::file_status_in_commit(
-            &self.repo_path,
-            &hash,
-            &self.search.active_file_patterns,
-        )
-        .ok()
-        .flatten();
+        let status =
+            git::file_status_in_commit(&self.repo_path, &hash, &self.search.active_file_patterns)
+                .ok()
+                .flatten();
         self.file_status_cache.insert(hash, status);
         status
     }
@@ -573,8 +574,9 @@ impl App {
         // Hidden commits of the drilled-into merge become the whole view; the
         // drilled merges themselves must not hide their branches here.
         let scope_hash = self.drill_stack.last().map(|f| f.merge_hash.clone());
-        let scope_depths: Option<HashMap<usize, usize>> =
-            scope_hash.clone().map(|hash| self.drill_scope_depths(&hash));
+        let scope_depths: Option<HashMap<usize, usize>> = scope_hash
+            .clone()
+            .map(|hash| self.drill_scope_depths(&hash));
         let hidden_started = Instant::now();
         let mut hidden_flags = vec![false; self.commits.len()];
         let mut merge_hidden_counts: HashMap<usize, usize> = HashMap::new();
@@ -789,8 +791,7 @@ impl App {
             return;
         };
         let Some(merge_idx) = self.merge_point_of(commit_idx) else {
-            self.status_message =
-                Some("Commit is on the mainline — no containing merge.".into());
+            self.status_message = Some("Commit is on the mainline — no containing merge.".into());
             return;
         };
         let merge_hash = self.commits[merge_idx].hash.clone();
@@ -855,9 +856,8 @@ impl App {
             // same selection the outer view renders exactly as it did at
             // drill time (the viewport only moves when the selection would
             // fall outside it).
-            *self.list_state.offset_mut() = frame
-                .saved_offset
-                .min(self.visible.len().saturating_sub(1));
+            *self.list_state.offset_mut() =
+                frame.saved_offset.min(self.visible.len().saturating_sub(1));
         }
         self.schedule_selected_stats_load();
         let short = &frame.merge_hash[..frame.merge_hash.len().min(8)];
@@ -1127,7 +1127,11 @@ mod visible_rows_tests {
         sp.filter_matches = Some(vec![3]);
         let (rows, _) = build_visible_rows(&cs, sp);
         assert!(matches!(rows[0], VisibleRow::DrillHeader { idx: 0, .. }));
-        assert_eq!(commit_indices(&rows), vec![3], "4 filtered out, header kept");
+        assert_eq!(
+            commit_indices(&rows),
+            vec![3],
+            "4 filtered out, header kept"
+        );
     }
 
     /// Invariant: no commit index appears twice, whatever the spec.

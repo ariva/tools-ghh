@@ -37,9 +37,7 @@ impl App {
         if self.context_menu.is_some() {
             return self.mouse_on_context_menu(mouse);
         }
-        if right_click
-            && let Some(handled) = self.mouse_right_click_menus(mouse)
-        {
+        if right_click && let Some(handled) = self.mouse_right_click_menus(mouse) {
             return handled;
         }
         if self.popup_visible() {
@@ -193,10 +191,8 @@ impl App {
                         let was_active = self.search.field == field;
                         let value_len = self.search.value(field).chars().count();
                         let multi =
-                            crate::app::features::search::SearchState::multi_value_separator(
-                                field,
-                            )
-                            .is_some();
+                            crate::app::features::search::SearchState::multi_value_separator(field)
+                                .is_some();
                         let layout = crate::app::layout::layout_field_line(
                             popup.width.saturating_sub(4),
                             value_len,
@@ -293,11 +289,7 @@ impl App {
         }
 
         if right_click && self.is_commit_context_position(mouse.column, mouse.row) {
-            self.open_context_menu(
-                mouse.column,
-                mouse.row,
-                Self::commit_copy_context_actions(),
-            );
+            self.open_context_menu(mouse.column, mouse.row, Self::commit_copy_context_actions());
             return Some(false);
         }
 
@@ -393,8 +385,7 @@ impl App {
         match target {
             ResizeTarget::ListDiff => {
                 if area.width > 0 {
-                    self.splits.list_pct =
-                        (u32::from(column) * 100 / u32::from(area.width)) as u16;
+                    self.splits.list_pct = (u32::from(column) * 100 / u32::from(area.width)) as u16;
                 }
             }
             ResizeTarget::InfoPatch => {
@@ -402,16 +393,14 @@ impl App {
                 if let Some((list_rect, _)) = self.commit_list_regions()
                     && list_rect.height > 0
                 {
-                    self.splits.diff_info_pct = (u32::from(row.saturating_sub(list_rect.y))
-                        * 100
+                    self.splits.diff_info_pct = (u32::from(row.saturating_sub(list_rect.y)) * 100
                         / u32::from(list_rect.height))
                         as u16;
                 }
             }
             ResizeTarget::DetailsTop => {
                 // Details footer runs down to the status bar (last row).
-                self.splits.details_height =
-                    area.height.saturating_sub(1).saturating_sub(row);
+                self.splits.details_height = area.height.saturating_sub(1).saturating_sub(row);
             }
         }
         self.splits = self.splits.clamped();
@@ -596,8 +585,12 @@ impl App {
             MouseEventKind::Down(_) => 0,
             _ => return,
         };
-        let Some((list_rect, diff_rect, _)) = self.stash_regions() else { return };
-        let Some(stash) = self.stash.as_mut() else { return };
+        let Some((list_rect, diff_rect, _)) = self.stash_regions() else {
+            return;
+        };
+        let Some(stash) = self.stash.as_mut() else {
+            return;
+        };
         let row = stash.list_state.selected().unwrap_or(0);
         if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
             stash.diff_focused = delta == 0 || stash.diff_focused;
@@ -626,49 +619,49 @@ impl App {
         let up = mouse.kind == MouseEventKind::ScrollUp;
         let down = mouse.kind == MouseEventKind::ScrollDown;
         let click = matches!(mouse.kind, MouseEventKind::Down(_));
-            let staging_regions = self.staging_regions();
-            if let Some(s) = self.staging.as_mut()
-                && let Some((files_rect, diff_rect, msg_rect)) = staging_regions
-            {
-                if click {
-                    if Self::rect_contains(files_rect, mouse.column, mouse.row) {
-                        s.focus = crate::app::features::staging::StagingFocus::FileList;
-                    } else if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
-                        s.focus = crate::app::features::staging::StagingFocus::Diff;
-                    } else if Self::rect_contains(msg_rect, mouse.column, mouse.row) {
-                        s.focus = crate::app::features::staging::StagingFocus::CommitMessage;
-                    }
+        let staging_regions = self.staging_regions();
+        if let Some(s) = self.staging.as_mut()
+            && let Some((files_rect, diff_rect, msg_rect)) = staging_regions
+        {
+            if click {
+                if Self::rect_contains(files_rect, mouse.column, mouse.row) {
+                    s.focus = crate::app::features::staging::StagingFocus::FileList;
+                } else if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
+                    s.focus = crate::app::features::staging::StagingFocus::Diff;
+                } else if Self::rect_contains(msg_rect, mouse.column, mouse.row) {
+                    s.focus = crate::app::features::staging::StagingFocus::CommitMessage;
                 }
-                if up || down {
-                    if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
-                        if up {
-                            s.diff_scroll = s.diff_scroll.saturating_sub(3);
-                        } else {
-                            s.diff_scroll = s.diff_scroll.saturating_add(3);
-                        }
-                    } else if Self::rect_contains(files_rect, mouse.column, mouse.row) {
-                        if up {
-                            let prev = match s.list_state.selected() {
-                                Some(0) | None => 0,
-                                Some(i) => i - 1,
+            }
+            if up || down {
+                if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
+                    if up {
+                        s.diff_scroll = s.diff_scroll.saturating_sub(3);
+                    } else {
+                        s.diff_scroll = s.diff_scroll.saturating_add(3);
+                    }
+                } else if Self::rect_contains(files_rect, mouse.column, mouse.row) {
+                    if up {
+                        let prev = match s.list_state.selected() {
+                            Some(0) | None => 0,
+                            Some(i) => i - 1,
+                        };
+                        s.list_state.select(Some(prev));
+                        s.refresh_diff(&self.repo_path);
+                    } else {
+                        let len = s.files.len();
+                        if len > 0 {
+                            let next = match s.list_state.selected() {
+                                Some(i) if i + 1 < len => i + 1,
+                                Some(i) => i,
+                                None => 0,
                             };
-                            s.list_state.select(Some(prev));
+                            s.list_state.select(Some(next));
                             s.refresh_diff(&self.repo_path);
-                        } else {
-                            let len = s.files.len();
-                            if len > 0 {
-                                let next = match s.list_state.selected() {
-                                    Some(i) if i + 1 < len => i + 1,
-                                    Some(i) => i,
-                                    None => 0,
-                                };
-                                s.list_state.select(Some(next));
-                                s.refresh_diff(&self.repo_path);
-                            }
                         }
                     }
                 }
             }
+        }
     }
 
     /// Commit list + diff panels: focus clicks, file jumps, row select,
@@ -678,124 +671,119 @@ impl App {
         let down = mouse.kind == MouseEventKind::ScrollDown;
         let click = matches!(mouse.kind, MouseEventKind::Down(_));
         let left_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
-            if let Some((list_rect, diff_rect)) = self.commit_list_regions() {
-                let diff_sections = self.commit_diff_regions();
-                // Drill breadcrumb on the list's title row: hashes jump back
-                // to that level, "…" pagers scroll the crumb window.
-                if left_click
-                    && let Some(hit) = self.breadcrumb_click(mouse.column, mouse.row)
-                {
-                    use crate::app::layout::BreadcrumbHit;
-                    match hit {
-                        BreadcrumbHit::Root => self.drill_back_to(0),
-                        BreadcrumbHit::Segment(level) => self.drill_back_to(level + 1),
-                        BreadcrumbHit::PagePrev => {
-                            let layout = self.breadcrumb(list_rect.width);
-                            self.breadcrumb_start = Some(layout.prev_start);
-                        }
-                        BreadcrumbHit::PageNext => {
-                            let layout = self.breadcrumb(list_rect.width);
-                            self.breadcrumb_start = Some(layout.next_start);
-                        }
+        if let Some((list_rect, diff_rect)) = self.commit_list_regions() {
+            let diff_sections = self.commit_diff_regions();
+            // Drill breadcrumb on the list's title row: hashes jump back
+            // to that level, "…" pagers scroll the crumb window.
+            if left_click && let Some(hit) = self.breadcrumb_click(mouse.column, mouse.row) {
+                use crate::app::layout::BreadcrumbHit;
+                match hit {
+                    BreadcrumbHit::Root => self.drill_back_to(0),
+                    BreadcrumbHit::Segment(level) => self.drill_back_to(level + 1),
+                    BreadcrumbHit::PagePrev => {
+                        let layout = self.breadcrumb(list_rect.width);
+                        self.breadcrumb_start = Some(layout.prev_start);
                     }
-                    return;
-                }
-                if click && self.show_commit_diff {
-                    if Self::rect_contains(list_rect, mouse.column, mouse.row) {
-                        self.commit_list_focus = CommitListFocus::List;
-                    } else if diff_sections.map(|(info_rect, _)| {
-                        Self::rect_contains(info_rect, mouse.column, mouse.row)
-                    }) == Some(true)
-                    {
-                        self.commit_list_focus = CommitListFocus::DiffInfo;
-                    } else if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
-                        self.commit_list_focus = CommitListFocus::Diff;
+                    BreadcrumbHit::PageNext => {
+                        let layout = self.breadcrumb(list_rect.width);
+                        self.breadcrumb_start = Some(layout.next_start);
                     }
                 }
-                if left_click
-                    && let Some((info_rect, _)) = diff_sections
-                    && let Some(file_index) =
-                        self.selected_diff_file_at(info_rect, mouse.column, mouse.row)
-                    && let Some(commit) = self.selected_commit()
-                    && let Some(file) = self
-                        .commit_diff_file_cache
-                        .get(&commit.hash)
-                        .and_then(|files| files.get(file_index))
-                {
-                    self.commit_diff_scroll = file.diff_line;
-                    self.commit_list_focus = CommitListFocus::Diff;
-                    return;
-                }
-                if click
-                    && let Some(visible_idx) = self.commit_list_row_at(mouse.column, mouse.row)
-                {
-                    self.list_state.select(Some(visible_idx));
-                    self.commit_diff_scroll = 0;
-                    self.commit_diff_info_scroll = 0;
-                    self.schedule_selected_stats_load();
-                    return;
-                }
-                if up || down {
-                    if let Some((info_rect, _)) = diff_sections
-                        && Self::rect_contains(info_rect, mouse.column, mouse.row)
-                    {
-                        let previous = self.commit_diff_info_scroll;
-                        if up {
-                            self.commit_diff_info_scroll =
-                                self.commit_diff_info_scroll.saturating_sub(3);
-                        } else {
-                            self.commit_diff_info_scroll =
-                                self.commit_diff_info_scroll.saturating_add(3);
-                        }
-                        self.preserve_text_selection_on_scroll(
-                            info_rect,
-                            !up,
-                            previous.abs_diff(self.commit_diff_info_scroll),
-                        );
-                        return;
-                    } else if self.show_commit_diff
-                        && diff_sections
-                            .map(|(_, patch_rect)| {
-                                Self::rect_contains(patch_rect, mouse.column, mouse.row)
-                            })
-                            .unwrap_or(false)
-                    {
-                        let previous = self.commit_diff_scroll;
-                        if up {
-                            self.commit_diff_scroll = self.commit_diff_scroll.saturating_sub(3);
-                        } else {
-                            self.commit_diff_scroll = self.commit_diff_scroll.saturating_add(3);
-                        }
-                        if let Some((_, diff_rect)) = diff_sections {
-                            self.preserve_text_selection_on_scroll(
-                                diff_rect,
-                                !up,
-                                previous.abs_diff(self.commit_diff_scroll),
-                            );
-                        }
-                        return;
-                    }
-                    if Self::rect_contains(list_rect, mouse.column, mouse.row) {
-                        if up {
-                            self.move_up();
-                            self.commit_diff_scroll = 0;
-                            self.commit_diff_info_scroll = 0;
-                        } else {
-                            self.move_down();
-                            self.commit_diff_scroll = 0;
-                            self.commit_diff_info_scroll = 0;
-                        }
-                        self.schedule_selected_stats_load();
-                    }
-                }
-            } else if up || down {
-                if up {
-                    self.move_up();
-                } else {
-                    self.move_down();
-                }
-                self.schedule_selected_stats_load();
+                return;
             }
+            if click && self.show_commit_diff {
+                if Self::rect_contains(list_rect, mouse.column, mouse.row) {
+                    self.commit_list_focus = CommitListFocus::List;
+                } else if diff_sections
+                    .map(|(info_rect, _)| Self::rect_contains(info_rect, mouse.column, mouse.row))
+                    == Some(true)
+                {
+                    self.commit_list_focus = CommitListFocus::DiffInfo;
+                } else if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
+                    self.commit_list_focus = CommitListFocus::Diff;
+                }
+            }
+            if left_click
+                && let Some((info_rect, _)) = diff_sections
+                && let Some(file_index) =
+                    self.selected_diff_file_at(info_rect, mouse.column, mouse.row)
+                && let Some(commit) = self.selected_commit()
+                && let Some(file) = self
+                    .commit_diff_file_cache
+                    .get(&commit.hash)
+                    .and_then(|files| files.get(file_index))
+            {
+                self.commit_diff_scroll = file.diff_line;
+                self.commit_list_focus = CommitListFocus::Diff;
+                return;
+            }
+            if click && let Some(visible_idx) = self.commit_list_row_at(mouse.column, mouse.row) {
+                self.list_state.select(Some(visible_idx));
+                self.commit_diff_scroll = 0;
+                self.commit_diff_info_scroll = 0;
+                self.schedule_selected_stats_load();
+                return;
+            }
+            if up || down {
+                if let Some((info_rect, _)) = diff_sections
+                    && Self::rect_contains(info_rect, mouse.column, mouse.row)
+                {
+                    let previous = self.commit_diff_info_scroll;
+                    if up {
+                        self.commit_diff_info_scroll =
+                            self.commit_diff_info_scroll.saturating_sub(3);
+                    } else {
+                        self.commit_diff_info_scroll =
+                            self.commit_diff_info_scroll.saturating_add(3);
+                    }
+                    self.preserve_text_selection_on_scroll(
+                        info_rect,
+                        !up,
+                        previous.abs_diff(self.commit_diff_info_scroll),
+                    );
+                    return;
+                } else if self.show_commit_diff
+                    && diff_sections
+                        .map(|(_, patch_rect)| {
+                            Self::rect_contains(patch_rect, mouse.column, mouse.row)
+                        })
+                        .unwrap_or(false)
+                {
+                    let previous = self.commit_diff_scroll;
+                    if up {
+                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_sub(3);
+                    } else {
+                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_add(3);
+                    }
+                    if let Some((_, diff_rect)) = diff_sections {
+                        self.preserve_text_selection_on_scroll(
+                            diff_rect,
+                            !up,
+                            previous.abs_diff(self.commit_diff_scroll),
+                        );
+                    }
+                    return;
+                }
+                if Self::rect_contains(list_rect, mouse.column, mouse.row) {
+                    if up {
+                        self.move_up();
+                        self.commit_diff_scroll = 0;
+                        self.commit_diff_info_scroll = 0;
+                    } else {
+                        self.move_down();
+                        self.commit_diff_scroll = 0;
+                        self.commit_diff_info_scroll = 0;
+                    }
+                    self.schedule_selected_stats_load();
+                }
+            }
+        } else if up || down {
+            if up {
+                self.move_up();
+            } else {
+                self.move_down();
+            }
+            self.schedule_selected_stats_load();
+        }
     }
-
 }

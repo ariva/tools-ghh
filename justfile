@@ -49,3 +49,10 @@ bench-e2e:
     RUSTC_WRAPPER= cargo build --release
     script -qec "./target/release/ghh --path /home/arunas/dev/ariva/repos/big-dummy-repo --auto 'SLEEP 6000,SLEEP 200,SLEEP 200,SLEEP 200,UPPER_G,SLEEP 300,LOWER_G,SLASH,LOWER_F,LOWER_I,LOWER_X,ENTER,SLEEP 400,LOWER_F,SLEEP 300,LOWER_Q' --stats" /tmp/ghh-bench-e2e.log > /dev/null
     @grep -aE "ms=" /tmp/ghh-bench-e2e.log | grep -avE "count=0" | sort -u | tail -30
+
+# demo recording (Docker + VHS): builds crates/ghh/docker/demo/Dockerfile, plays demo.tape against a
+# made-up repository built in the container, writes docs/assets/demo.gif (a few minutes, mostly the Rust build)
+demo:
+    docker build -f crates/ghh/docker/demo/Dockerfile -t ghh-demo .
+    docker run --rm --hostname demo-box -v "$PWD/docs/assets:/out" ghh-demo
+    docker run --rm -v "$PWD/docs/assets:/out" --entrypoint chown ghh-demo $(id -u):$(id -g) /out/demo.gif

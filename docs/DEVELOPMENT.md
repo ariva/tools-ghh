@@ -26,6 +26,8 @@ just install          # cargo install --path crates/ghh --force --locked -> ~/.c
 just bench            # synthetic graph-engine and search benches
 just bench-repo       # stage costs against a big local repository (skips if absent)
 just bench-e2e        # release build driven by --auto on that repository, prints --stats
+
+just demo             # record docs/assets/demo.gif (needs Docker), see Demo below
 ```
 
 `just --list` shows every recipe with its comment. `build`, `release`,
@@ -47,7 +49,9 @@ crates/ghh/           the tool: package tool-ghh, binary ghh
 crates/ghh/build.rs   version stamp: commit hash and build date
 crates/ghh/src/       code; module table in ARCHITECTURE.md
 crates/ghh/testing/   sample --auto key scripts
+crates/ghh/docker/    Docker images; demo/ records the README clip: `just demo`
 docs/                 ARCHITECTURE, DEVELOPMENT, FAQ, SETTINGS, CODING-STYLE
+docs/assets/          README images: demo.gif, bmc_qr.png
 ```
 
 [ARCHITECTURE.md](ARCHITECTURE.md) says where code goes and why;
@@ -99,6 +103,17 @@ tail -f /tmp/ghh.log                                       # terminal 2
 
 Inside the app, `D` opens the same event stream. Never debug with
 `println!`: it writes over the screen.
+
+## Demo
+
+`just demo` records `docs/assets/demo.gif`, the clip at the top of the
+README: `crates/ghh/docker/demo/Dockerfile` compiles ghh and plays
+`demo.tape` through [VHS](https://github.com/charmbracelet/vhs) against
+a made-up repository that `make-repo` builds in the container. It needs
+Docker and takes a few minutes, mostly the Rust build. Record it again
+when a screen the clip shows changes;
+[crates/ghh/docker/README.md](../crates/ghh/docker/README.md) has the
+files and how to iterate on the tape without a rebuild.
 
 ## Adding a feature
 

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# The tape's first, hidden command, run as root in the container: builds
+# the fake repository in the `dev` home, then becomes a `dev` shell, so
+# the prompt and every path on screen say dev, not root.
+set -euo pipefail
+HERE="$(dirname "$(readlink -f "$0")")"
+exec setpriv --reuid=dev --regid=dev --init-groups env HOME=/home/dev USER=dev \
+    bash -c "'$HERE/make-repo' /home/dev/shop-api && cd /home/dev && exec bash --norc"

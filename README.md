@@ -1,6 +1,16 @@
 # GIT Handy Helper
 [Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-t) · [Move commit](#move-a-commit-up-or-down-m) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
+`ghh` (git handy helper) is a terminal UI for browsing and rewriting Git
+history: a commit graph with merged branches you can collapse or drill
+into, the diff of any commit, search and filter by text, author, date,
+file, branch or tag, and the merge (pull request) that brought a commit
+to the main line in one key. It also rewrites history, asking first:
+edit a commit's message, author or date, squash, move a commit up or
+down; and it stages, commits and browses stashes.
+
+![ghh on a made-up repository: diff pane, t to the PR merge, drill in, collapse, search and filter, stashes, move a commit](docs/assets/demo.gif)
+
 ## Install
 
 ```sh

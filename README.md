@@ -1,4 +1,5 @@
 # GIT Handy Helper
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-t) · [Move commit](#move-a-commit-up-or-down-m) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
 ## Install
 
@@ -8,6 +9,14 @@ just install                # from a checkout: cargo install --path crates/ghh -
 ```
 
 The Cargo package is `tool-ghh`; the binary is `ghh`.
+
+## Buy me Pizza/Coffee/Tea
+* Like what I do? GHH is free and stays free. If it saved you time or allowed you to be more productive, you can support the next release: **[Buy me a coffee ☕](https://buymeacoffee.com/ariva)** — or scan the code.
+
+<p align="center"><a href="https://buymeacoffee.com/ariva"><img src="docs/assets/bmc_qr.png" alt="Buy me a coffee — QR code" width="140"></a></p>
+
+## Support
+* Have a question, found a bug, or want to suggest a feature? Send me a message: **arunas.work.hg [ AT ] [g] [m] [a] [i] [l] [.] [c] [o] [m]**.
 
 ## Repository path
 
@@ -221,3 +230,7 @@ Script syntax:
 | Ctrl combos | `CTRL_C` `CTRL_D` `CTRL_Q` `CTRL_S` `CTRL_Z` |
 
 After all demo commands are replayed the app continues in normal interactive mode.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

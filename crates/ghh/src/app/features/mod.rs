@@ -8,3 +8,4 @@ pub mod search;
 pub mod squash;
 pub mod staging;
 pub mod stash;
+pub mod working_tree;

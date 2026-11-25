@@ -46,7 +46,11 @@ pub(crate) fn commit_row_spans(
     let mut spans: Vec<Span<'static>> = Vec::new();
 
     spans.push(Span::styled(
-        format!("{:>width$} ", row_idx + 1, width = row_count_width),
+        format!(
+            "{:>width$} ",
+            app.row_number(row_idx),
+            width = row_count_width
+        ),
         if is_search_match {
             Style::default()
                 .fg(Color::Cyan)
@@ -279,6 +283,22 @@ fn render_commit_list_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
                         .add_modifier(Modifier::ITALIC),
                 ),
             )),
+            VisibleRow::WorkingTree => ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("{:>width$} ", 0, width = row_count_width),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    format!("\u{25CF} {}", app.working_tree.title()),
+                    Style::default()
+                        .fg(Color::LightMagenta)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "  Enter: staging",
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ])),
             VisibleRow::DrillHeader {
                 idx,
                 prefix_override,
@@ -289,7 +309,7 @@ fn render_commit_list_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
                     None => (c.graph_prefix.as_str(), c.graph_prefix_lanes.as_slice()),
                 };
                 let mut spans: Vec<Span<'static>> = vec![Span::styled(
-                    format!("{:>width$} ", row_idx + 1, width = row_count_width),
+                    format!("{:>width$} ", app.row_number(row_idx), width = row_count_width),
                     Style::default().fg(Color::DarkGray),
                 )];
                 if app.commit_list_view != CommitListView::Simple {
@@ -374,25 +394,33 @@ fn render_diff_panels(
             .split(rect);
         // Borrow the cached diff rather than cloning it: these vectors can hold
         // tens of thousands of lines and this runs on every frame.
-        let placeholder = match selected {
+        // The working tree row has no commit; its patch sits in the same
+        // caches under its own key.
+        let on_working_tree = app.working_tree_selected();
+        let diff_key = app.selected_diff_key().map(str::to_string);
+        let placeholder = match diff_key {
             Some(_) => vec!["Loading commit data...".to_string()],
             None => vec!["No commit selected".to_string()],
         };
-        let diff_lines: &[String] = selected
+        let diff_lines: &[String] = diff_key
             .as_ref()
-            .and_then(|commit| app.commit_diff_cache.get(&commit.hash))
+            .and_then(|key| app.commit_diff_cache.get(key))
             .map(Vec::as_slice)
             .unwrap_or(&placeholder);
         let no_files = Vec::new();
-        let diff_files = selected
+        let diff_files = diff_key
             .as_ref()
-            .and_then(|c| app.commit_diff_file_cache.get(&c.hash))
+            .and_then(|key| app.commit_diff_file_cache.get(key))
             .unwrap_or(&no_files);
         let info_terms = app
             .selected_commit_index()
             .filter(|idx| app.search.matches.binary_search(idx).is_ok())
             .and(app.search.executed_terms.as_ref());
-        let info_lines = render_commit_info_lines(selected, stats, diff_files, info_terms);
+        let info_lines = if on_working_tree {
+            working_tree_info_lines(&app.working_tree, diff_files)
+        } else {
+            render_commit_info_lines(selected, stats, diff_files, info_terms)
+        };
         let info_meta = scroll_label(
             app.commit_diff_info_scroll,
             info_lines.len(),
@@ -401,7 +429,14 @@ fn render_diff_panels(
         let info_para = Paragraph::new(info_lines)
             .block(
                 Block::default()
-                    .title(format!(" Commit Info [{info_meta}] "))
+                    .title(format!(
+                        " {} [{info_meta}] ",
+                        if on_working_tree {
+                            "Uncommitted changes"
+                        } else {
+                            "Commit Info"
+                        }
+                    ))
                     .borders(Borders::ALL)
                     .border_style(if app.commit_list_focus == CommitListFocus::DiffInfo {
                         Style::default().fg(Color::Yellow)
@@ -416,7 +451,13 @@ fn render_diff_panels(
         let diff_title = selected
             .as_ref()
             .map(|c| format!(" Diff: {} ", c.short_hash()))
-            .unwrap_or_else(|| " Diff ".to_string());
+            .unwrap_or_else(|| {
+                if on_working_tree {
+                    " Diff: uncommitted changes ".to_string()
+                } else {
+                    " Diff ".to_string()
+                }
+            });
         let diff_meta = scroll_label(
             app.commit_diff_scroll,
             diff_lines.len(),
@@ -469,6 +510,16 @@ pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active
         .cloned();
     render_diff_panels(frame, app, diff_rect, selected.as_ref(), stats.as_ref());
 
+    if app.working_tree_selected() {
+        crate::ui::screens::details::render_working_tree_details(
+            frame,
+            &app.working_tree,
+            app.commit_list_focus == crate::app::CommitListFocus::Details,
+            chunks[2],
+        );
+        render_status(frame, app, chunks[3]);
+        return;
+    }
     let merged_via = app
         .selected_commit_index()
         .and_then(|idx| app.merge_point_of(idx))
@@ -489,6 +540,69 @@ pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active
         chunks[2],
     );
     render_status(frame, app, chunks[3]);
+}
+
+/// Info pane for the "Uncommitted changes" row. The file list starts at
+/// line `INFO_HEADER_LINES`: the click-to-jump hit test counts on it.
+fn working_tree_info_lines(
+    working_tree: &crate::app::features::working_tree::WorkingTreeState,
+    files: &[crate::app::CommitDiffFile],
+) -> Vec<Line<'static>> {
+    let label = |text: &'static str| Span::styled(text, Style::default().fg(Color::Yellow));
+    let (staged, unstaged, untracked) = working_tree.counts();
+    let additions: usize = files.iter().map(|f| f.additions).sum();
+    let deletions: usize = files.iter().map(|f| f.deletions).sum();
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "Uncommitted changes (not a commit yet)",
+            Style::default()
+                .fg(Color::LightMagenta)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(vec![
+            label("Files: "),
+            Span::raw(format!(
+                "{staged} staged, {unstaged} unstaged, {untracked} untracked"
+            )),
+        ]),
+        Line::from(vec![
+            label("Changes: "),
+            Span::styled(format!("+{additions}"), Style::default().fg(Color::Green)),
+            Span::raw(" "),
+            Span::styled(format!("-{deletions}"), Style::default().fg(Color::Red)),
+        ]),
+        Line::from(""),
+        Line::from(label("Files (click to jump):")),
+    ];
+    debug_assert_eq!(
+        lines.len(),
+        crate::app::features::working_tree::INFO_HEADER_LINES
+    );
+    lines.extend(files.iter().map(|file| {
+        Line::from(vec![
+            Span::styled(
+                format!("{} ", file.status),
+                Style::default()
+                    .fg(file_status_color(file.status))
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("+{}", file.additions),
+                Style::default().fg(Color::Green),
+            ),
+            Span::raw(" "),
+            Span::styled(
+                format!("-{}", file.deletions),
+                Style::default().fg(Color::Red),
+            ),
+            Span::styled(
+                format!("  {:<9} ", working_tree.section_of(file.diff_line)),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::raw(file.path.clone()),
+        ])
+    }));
+    lines
 }
 
 fn render_commit_info_lines(
@@ -729,7 +843,9 @@ fn commit_message_width(list_width: u16, row_count_width: usize, graph_width: us
 fn row_depth(row: &VisibleRow) -> usize {
     match row {
         VisibleRow::Commit { depth, .. } => *depth,
-        VisibleRow::DrillHeader { .. } | VisibleRow::CollapsedBranch { .. } => 0,
+        VisibleRow::DrillHeader { .. }
+        | VisibleRow::CollapsedBranch { .. }
+        | VisibleRow::WorkingTree => 0,
     }
 }
 
@@ -755,7 +871,7 @@ fn graph_render_width(app: &App, start: usize, end: usize) -> usize {
                 idx,
                 prefix_override,
             } => Some(row_prefix(idx, prefix_override)),
-            VisibleRow::CollapsedBranch { .. } => None,
+            VisibleRow::CollapsedBranch { .. } | VisibleRow::WorkingTree => None,
         })
         .max()
         .unwrap_or(0)

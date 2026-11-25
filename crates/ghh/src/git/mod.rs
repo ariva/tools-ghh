@@ -24,6 +24,7 @@ pub use reorder::{
 };
 pub use staging::{
     commit_staged, get_file_diff, load_status, stage_all, stage_file, unstage_all, unstage_file,
+    working_tree_patch,
 };
 pub use stash::{StashEntry, list_stashes, stash_apply, stash_drop, stash_patch, stash_stat};
 pub use tree_layout::{TreeLaneEngine, TreeLayout};

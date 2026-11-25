@@ -196,29 +196,161 @@ pub fn get_file_diff(repo_path: &Path, file: &FileStatus) -> Result<String> {
         repo.diff_index_to_workdir(None, Some(&mut diff_opts))?
     };
 
-    let mut output = String::new();
-    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-        let origin = line.origin();
-        if let Ok(content) = std::str::from_utf8(line.content()) {
-            let content = content.trim_end_matches('\n').trim_end_matches('\r');
-            match origin {
-                '+' | '-' | ' ' => {
-                    output.push(origin);
-                    output.push_str(content);
-                    output.push('\n');
-                }
-                _ => {
-                    output.push_str(content);
-                    output.push('\n');
-                }
-            }
-        }
-        true
-    })?;
+    let mut output = patch_text(&diff)?;
 
     if output.is_empty() {
         output = format!("(no diff for {})", file.path);
     }
 
     Ok(output)
+}
+
+/// A libgit2 diff as patch text, one line per line (`diff --git` headers
+/// included, so `parse_diff_files` finds the files).
+fn patch_text(diff: &git2::Diff) -> Result<String> {
+    let mut output = String::new();
+    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        if let Ok(content) = std::str::from_utf8(line.content()) {
+            let content = content.trim_end_matches('\n').trim_end_matches('\r');
+            if matches!(origin, '+' | '-' | ' ') {
+                output.push(origin);
+            }
+            output.push_str(content);
+            output.push('\n');
+        }
+        true
+    })?;
+    Ok(output)
+}
+
+/// Everything not committed yet as one patch: staged changes, then unstaged,
+/// then untracked files as additions.
+pub struct WorkingTreePatch {
+    pub lines: Vec<String>,
+    /// Line index where the unstaged part starts.
+    pub unstaged_from: usize,
+    /// Line index where the untracked part starts.
+    pub untracked_from: usize,
+}
+
+/// `files` is the status list from [`load_status`]; only its untracked
+/// entries are read here, the tracked changes come from the two diffs.
+pub fn working_tree_patch(repo_path: &Path, files: &[FileStatus]) -> Result<WorkingTreePatch> {
+    // ponytail: the patch is built in one go on the UI thread and kept in
+    // memory; untracked content stops at these limits. Move to a loader
+    // thread if a huge uncommitted diff ever stalls the list.
+    const MAX_UNTRACKED_FILE_BYTES: u64 = 1024 * 1024;
+    const MAX_PATCH_LINES: usize = 50_000;
+
+    let repo = Repository::discover(repo_path)?;
+    let head_tree = repo
+        .head()
+        .and_then(|h| h.peel_to_commit())
+        .and_then(|c| c.tree())
+        .ok();
+    let mut lines: Vec<String> = Vec::new();
+    let section = |lines: &mut Vec<String>, title: &str, body: &str| {
+        if !body.is_empty() {
+            lines.push(format!(
+                "\u{2500}\u{2500}\u{2500}\u{2500} {title} \u{2500}\u{2500}\u{2500}\u{2500}"
+            ));
+            lines.extend(body.lines().map(String::from));
+        }
+    };
+
+    let staged = repo.diff_tree_to_index(head_tree.as_ref(), None, None)?;
+    section(&mut lines, "Staged", &patch_text(&staged)?);
+    let unstaged_from = lines.len();
+    let unstaged = repo.diff_index_to_workdir(None, None)?;
+    section(&mut lines, "Unstaged", &patch_text(&unstaged)?);
+    let untracked_from = lines.len();
+
+    let workdir = repo.workdir().ok_or(Error::NoWorkdir)?;
+    let mut untracked = String::new();
+    for file in files
+        .iter()
+        .filter(|f| f.stage_state == StageState::Untracked)
+    {
+        untracked.push_str(&format!(
+            "diff --git a/{0} b/{0}\nnew file mode 100644\n--- /dev/null\n+++ b/{0}\n",
+            file.path
+        ));
+        let full_path = workdir.join(&file.path);
+        let size = std::fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
+        if size > MAX_UNTRACKED_FILE_BYTES {
+            untracked.push_str(&format!("(not shown: {size} bytes)\n"));
+        } else if lines.len() + untracked.lines().count() > MAX_PATCH_LINES {
+            untracked.push_str("(not shown: patch is already very long)\n");
+        } else {
+            match std::fs::read_to_string(&full_path) {
+                Ok(content) => {
+                    for line in content.lines() {
+                        untracked.push('+');
+                        untracked.push_str(line);
+                        untracked.push('\n');
+                    }
+                }
+                Err(_) => untracked.push_str("(binary or unreadable)\n"),
+            }
+        }
+    }
+    section(&mut lines, "Untracked", &untracked);
+
+    Ok(WorkingTreePatch {
+        lines,
+        unstaged_from,
+        untracked_from,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Staged, unstaged and untracked changes land in one patch, in that
+    /// order, each under a `diff --git` header the file parser reads.
+    #[test]
+    fn working_tree_patch_has_staged_unstaged_and_untracked_parts() {
+        let dir = std::env::temp_dir().join(format!("ghh-worktree-patch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = Repository::init(&dir).unwrap();
+        let sig = git2::Signature::new("t", "t@t", &git2::Time::new(1_000_000, 0)).unwrap();
+        let add = |name: &str| {
+            let mut index = repo.index().unwrap();
+            index.add_path(Path::new(name)).unwrap();
+            index.write().unwrap();
+            index.write_tree().unwrap()
+        };
+        std::fs::write(dir.join("staged.txt"), "one\n").unwrap();
+        std::fs::write(dir.join("unstaged.txt"), "one\n").unwrap();
+        add("staged.txt");
+        let tree = repo.find_tree(add("unstaged.txt")).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "c0", &tree, &[])
+            .unwrap();
+
+        std::fs::write(dir.join("staged.txt"), "one\ntwo\n").unwrap();
+        add("staged.txt");
+        std::fs::write(dir.join("unstaged.txt"), "changed\n").unwrap();
+        std::fs::write(dir.join("new.txt"), "fresh\n").unwrap();
+
+        let files = load_status(&dir).unwrap();
+        assert_eq!(files.len(), 3);
+        let patch = working_tree_patch(&dir, &files).unwrap();
+        let header = |name: &str| {
+            patch
+                .lines
+                .iter()
+                .position(|l| l == &format!("diff --git a/{name} b/{name}"))
+                .unwrap_or_else(|| panic!("no header for {name}: {:#?}", patch.lines))
+        };
+        assert!(header("staged.txt") < patch.unstaged_from);
+        assert!((patch.unstaged_from..patch.untracked_from).contains(&header("unstaged.txt")));
+        assert!(header("new.txt") > patch.untracked_from);
+        assert!(patch.lines.contains(&"+two".to_string()));
+        assert!(patch.lines.contains(&"-one".to_string()));
+        assert!(patch.lines.contains(&"+fresh".to_string()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

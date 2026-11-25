@@ -146,17 +146,27 @@ impl App {
     pub(crate) fn handle_normal(&mut self, key: KeyEvent) -> bool {
         let page_size = self.commit_list_page_size();
         let (diff_info_page_size, diff_page_size) = self.commit_diff_page_steps();
+        // The Details pane takes focus only for the "Uncommitted changes"
+        // row; once another row is selected the list has it again.
+        if self.commit_list_focus == CommitListFocus::Details && !self.working_tree_selected() {
+            self.commit_list_focus = CommitListFocus::List;
+        }
+        let panes_to_cycle = self.show_commit_diff || self.working_tree_selected();
+        let details_page = self
+            .commit_details_region()
+            .map_or(1, crate::app::layout::pane_page_step) as isize;
         match key.code {
             KeyCode::Char('q') => return true,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return true,
             KeyCode::Esc if self.show_commit_diff => self.toggle_commit_diff(),
-            KeyCode::BackTab if self.show_commit_diff => self.cycle_commit_diff_focus(false),
-            KeyCode::Tab
-                if self.show_commit_diff && key.modifiers.contains(KeyModifiers::SHIFT) =>
-            {
+            KeyCode::Esc if self.commit_list_focus == CommitListFocus::Details => {
+                self.commit_list_focus = CommitListFocus::List;
+            }
+            KeyCode::BackTab if panes_to_cycle => self.cycle_commit_diff_focus(false),
+            KeyCode::Tab if panes_to_cycle && key.modifiers.contains(KeyModifiers::SHIFT) => {
                 self.cycle_commit_diff_focus(false);
             }
-            KeyCode::Tab if self.show_commit_diff => self.cycle_commit_diff_focus(true),
+            KeyCode::Tab if panes_to_cycle => self.cycle_commit_diff_focus(true),
             KeyCode::Down | KeyCode::Char('j') => match self.commit_list_focus {
                 CommitListFocus::List => {
                     self.move_down();
@@ -189,6 +199,7 @@ impl App {
                         );
                     }
                 }
+                CommitListFocus::Details => self.scroll_working_tree_details(1),
             },
             KeyCode::Up | KeyCode::Char('k') => match self.commit_list_focus {
                 CommitListFocus::List => {
@@ -222,6 +233,7 @@ impl App {
                         );
                     }
                 }
+                CommitListFocus::Details => self.scroll_working_tree_details(-1),
             },
             KeyCode::Char('g') | KeyCode::Home => match self.commit_list_focus {
                 CommitListFocus::List => {
@@ -239,8 +251,12 @@ impl App {
                     self.mark_perf_action("commit_list.action.diff_scroll_top");
                     self.commit_diff_scroll = 0
                 }
+                CommitListFocus::Details => self.working_tree.details_scroll = 0,
             },
             KeyCode::Char('G') | KeyCode::End => {
+                if self.commit_list_focus == CommitListFocus::Details {
+                    self.scroll_working_tree_details(isize::MAX);
+                }
                 if self.commit_list_focus == CommitListFocus::List {
                     if self.full_history_required("jumping to bottom") {
                         return false;
@@ -326,6 +342,7 @@ impl App {
                 }
                 CommitListFocus::DiffInfo => {}
                 CommitListFocus::Diff => {}
+                CommitListFocus::Details => self.scroll_working_tree_details(details_page),
             },
             KeyCode::PageUp | KeyCode::Char('P') => match self.commit_list_focus {
                 CommitListFocus::List => {
@@ -364,6 +381,7 @@ impl App {
                 }
                 CommitListFocus::DiffInfo => {}
                 CommitListFocus::Diff => {}
+                CommitListFocus::Details => self.scroll_working_tree_details(-details_page),
             },
             KeyCode::Char('e') => {
                 if self.full_history_required("editing commits") {
@@ -395,6 +413,15 @@ impl App {
             KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
                 self.mark_perf_action("commit_list.action.drill_into_merge_of_selected");
                 self.drill_into_merge_of_selected()
+            }
+            // On the "Uncommitted changes" row Enter opens staging, like `s`.
+            KeyCode::Enter if self.working_tree_selected() => {
+                self.commit_list_focus = CommitListFocus::List;
+                if self.full_history_required("opening staging") {
+                    return false;
+                }
+                self.mark_perf_action("commit_list.action.enter_staging");
+                self.enter_staging()
             }
             KeyCode::Enter => {
                 self.mark_perf_action("commit_list.action.drill_into_selected");

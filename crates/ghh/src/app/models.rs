@@ -195,6 +195,9 @@ pub enum CommitListFocus {
     List,
     DiffInfo,
     Diff,
+    /// Bottom Details pane; only for the "Uncommitted changes" row, whose
+    /// file list can be longer than the pane.
+    Details,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -464,6 +467,10 @@ pub enum VisibleRow {
         idx: usize,
         prefix_override: Option<(String, Vec<u8>)>,
     },
+    /// "Uncommitted changes" on top of the top-level list (see
+    /// `features/working_tree.rs`). Not a commit: every commit action
+    /// ignores it.
+    WorkingTree,
 }
 
 /// State for the interactive squash mode.

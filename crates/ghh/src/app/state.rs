@@ -74,6 +74,7 @@ pub struct App {
     pub staging: Option<StagingState>,
     pub squash: Option<SquashState>,
     pub stash: Option<crate::app::features::stash::StashState>,
+    pub working_tree: crate::app::features::working_tree::WorkingTreeState,
     pub move_state: Option<crate::app::models::MoveState>,
     pub squash_msg: Option<SquashMessageState>,
     pub commit_msg_editor: Option<MultilineEditor>,
@@ -175,6 +176,7 @@ impl App {
             squash: None,
             move_state: None,
             stash: None,
+            working_tree: Default::default(),
             squash_msg: None,
             commit_msg_editor: None,
             editor_save_selected: true,
@@ -213,6 +215,7 @@ impl App {
             debug_show_events,
         };
         app.status_message = Some("Loading initial history...".into());
+        app.refresh_working_tree();
         app.schedule_selected_stats_load();
         app
     }
@@ -286,6 +289,8 @@ impl App {
                 depth: 0,
             })
             .collect();
+        self.ensure_working_tree_row();
+        self.refresh_working_tree();
         // The rewrite changed hashes, so the selected commit's stats/diff
         // caches no longer match — reload them or the details pane stays on
         // its "Loading commit data..." placeholder forever.

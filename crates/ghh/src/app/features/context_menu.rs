@@ -88,7 +88,7 @@ impl App {
                     (pane, Self::commit_copy_context_actions())
                 })
             }
-            CommitListFocus::DiffInfo | CommitListFocus::Diff => None,
+            CommitListFocus::DiffInfo | CommitListFocus::Diff | CommitListFocus::Details => None,
         };
 
         if let Some((pane, actions)) = pane_and_actions {

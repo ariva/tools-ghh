@@ -8,6 +8,59 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
+/// Bottom pane for the "Uncommitted changes" row: counts, then one file
+/// per line as far as the pane is high.
+pub fn render_working_tree_details(
+    frame: &mut Frame,
+    working_tree: &crate::app::features::working_tree::WorkingTreeState,
+    focused: bool,
+    area: Rect,
+) {
+    use crate::git::StageState;
+    let (staged, unstaged, untracked) = working_tree.counts();
+    let mut lines = vec![Line::from(vec![
+        Span::styled("Uncommitted: ", Style::default().fg(Color::Yellow)),
+        Span::raw(format!(
+            "{staged} staged, {unstaged} unstaged, {untracked} untracked"
+        )),
+        Span::styled(
+            "   Enter / s: staging   v: changes   Tab: scroll this list",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ])];
+    lines.extend(working_tree.files.iter().map(|file| {
+        let (state, color) = match file.stage_state {
+            StageState::Staged => ("staged", Color::Green),
+            StageState::Unstaged => ("unstaged", Color::Red),
+            StageState::Untracked => ("untracked", Color::DarkGray),
+        };
+        Line::from(vec![
+            Span::styled(format!("{} ", file.status_char), Style::default().fg(color)),
+            Span::styled(format!("{state:<9} "), Style::default().fg(color)),
+            Span::raw(file.path.clone()),
+        ])
+    }));
+    let position = crate::ui::screens::diff::scroll_label(
+        working_tree.details_scroll,
+        lines.len(),
+        area.height,
+    );
+    let block = Block::default()
+        .title(format!(" Details [{position}] "))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if focused {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        }));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .scroll((working_tree.details_scroll as u16, 0)),
+        area,
+    );
+}
+
 pub fn render_details(
     frame: &mut Frame,
     commit: Option<&CommitInfo>,

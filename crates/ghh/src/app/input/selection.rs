@@ -86,9 +86,9 @@ impl App {
             Mode::Normal => {
                 if let Some((info, diff)) = self.commit_diff_regions() {
                     if Self::rect_contains(diff, column, row) {
-                        return self.selected_commit().and_then(|commit| {
+                        return self.selected_diff_key().and_then(|key| {
                             self.commit_diff_cache
-                                .get(&commit.hash)
+                                .get(key)
                                 .map(|lines| lines.join("\n"))
                         });
                     }
@@ -158,6 +158,7 @@ impl App {
                                 VisibleRow::CollapsedBranch { count, .. } => {
                                     format!("... {count} commits hidden")
                                 }
+                                VisibleRow::WorkingTree => self.working_tree.title(),
                             })
                             .collect::<Vec<_>>()
                             .join("\n")

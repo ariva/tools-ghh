@@ -1,5 +1,5 @@
 # GIT Handy Helper
-[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Uncommitted changes](#uncommitted-changes-row-0) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
 `ghh` (git handy helper) is a terminal UI for browsing, searching, analyzing and
 rewriting Git history: a commit graph with merged branches you can collapse or drill
@@ -117,6 +117,31 @@ if already pushed).
   tree required; not inside a drill view or search filter.
 
 Related keys: `v` toggles the diff pane, `l` / `L` cycle the list view forward / back.
+
+## Uncommitted changes (row 0)
+
+When the working tree is not clean, the commit list starts with one extra row,
+numbered 0, above the newest commit:
+
+```text
+0 ● Uncommitted changes: 1 staged, 2 unstaged, 1 untracked
+1 ○ a33788b 2026-03-03 01:27 Ines Duarte  [main] Bump version to 1.2.0.dev0
+```
+
+- Select it: the Details pane lists the files, each marked staged, unstaged or
+  untracked. More files than fit: `Tab` to the Details pane (its border turns
+  yellow), then `j`/`k`, `p`/`P` or PgDn/PgUp, `g`/`G` scroll it; the mouse
+  wheel over the pane scrolls it too. `Tab` or `Esc` goes back to the list.
+- `v` (diff pane): the file list on top (click a file to jump to it), their
+  changes below — staged first, then unstaged, then untracked files as
+  additions. An untracked file over 1 MB or a binary one is named, not shown.
+- `Enter` on the row opens staging, same as `s`.
+- It is not a commit: edit, squash, move, `m` and `M` do nothing on it, and
+  search does not match it.
+- Shown in the top-level list only, not inside a drill view or a filtered list.
+- The status is read at startup, when you leave the staging or stash screen,
+  and after a commit or a history rewrite. A change made in another terminal
+  shows after one of those, not by itself.
 
 ## Browse stashes (`S`)
 

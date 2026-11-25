@@ -36,11 +36,14 @@ impl App {
                 VisibleRow::Commit { idx, .. } | VisibleRow::DrillHeader { idx, .. } => {
                     self.commits.get(self.display_idx(*idx))
                 }
-                VisibleRow::CollapsedBranch { .. } => None,
+                VisibleRow::CollapsedBranch { .. } | VisibleRow::WorkingTree => None,
             })
     }
 
     pub fn load_selected_stats(&mut self) {
+        if self.working_tree_selected() && self.show_commit_diff {
+            self.load_working_tree_diff();
+        }
         if let Some(commit) = self.selected_commit() {
             let hash = commit.hash.clone();
             let needs_email = commit.author_email.is_empty();
@@ -163,7 +166,7 @@ impl App {
                     VisibleRow::Commit { .. } | VisibleRow::DrillHeader { .. } => {
                         commit_ord += 1;
                     }
-                    VisibleRow::CollapsedBranch { .. } => {}
+                    VisibleRow::CollapsedBranch { .. } | VisibleRow::WorkingTree => {}
                 }
             }
             if commit_ord == 0 {
@@ -248,14 +251,20 @@ impl App {
     }
 
     pub(crate) fn cycle_commit_diff_focus(&mut self, forward: bool) {
-        self.commit_list_focus = match (self.commit_list_focus, forward) {
-            (CommitListFocus::List, true) => CommitListFocus::DiffInfo,
-            (CommitListFocus::DiffInfo, true) => CommitListFocus::Diff,
-            (CommitListFocus::Diff, true) => CommitListFocus::List,
-            (CommitListFocus::List, false) => CommitListFocus::Diff,
-            (CommitListFocus::Diff, false) => CommitListFocus::DiffInfo,
-            (CommitListFocus::DiffInfo, false) => CommitListFocus::List,
-        };
+        // Panes that exist right now, in Tab order.
+        let mut panes = vec![CommitListFocus::List];
+        if self.show_commit_diff {
+            panes.extend([CommitListFocus::DiffInfo, CommitListFocus::Diff]);
+        }
+        if self.working_tree_selected() {
+            panes.push(CommitListFocus::Details);
+        }
+        let at = panes
+            .iter()
+            .position(|pane| *pane == self.commit_list_focus)
+            .unwrap_or(0);
+        let step = if forward { 1 } else { panes.len() - 1 };
+        self.commit_list_focus = panes[(at + step) % panes.len()];
     }
 
     /// Select the visible row that corresponds to `commit_idx` in `self.commits`.
@@ -532,7 +541,7 @@ impl App {
             .selected()
             .and_then(|i| match self.visible.get(i)? {
                 VisibleRow::Commit { idx, .. } | VisibleRow::DrillHeader { idx, .. } => Some(*idx),
-                VisibleRow::CollapsedBranch { .. } => None,
+                VisibleRow::CollapsedBranch { .. } | VisibleRow::WorkingTree => None,
             })
     }
 
@@ -641,18 +650,19 @@ impl App {
         };
         let (visible, final_hidden) = build_visible_rows(&self.commits, spec);
         self.collapsed_hidden_flags = final_hidden;
+        self.visible = visible;
+        self.ensure_working_tree_row();
         self.push_perf_metric(
             "commit_list.rebuild_visible.compute_visible_prefixes",
             prefix_started.elapsed(),
         );
 
-        let new_len = visible.len();
+        let new_len = self.visible.len();
         if new_len == 0 {
             self.list_state.select(None);
         } else if let Some(sel) = self.list_state.selected() {
             self.list_state.select(Some(sel.min(new_len - 1)));
         }
-        self.visible = visible;
         self.push_perf_metric(
             "commit_list.rebuild_visible.total",
             rebuild_started.elapsed(),
@@ -728,7 +738,7 @@ impl App {
             }
             Some(VisibleRow::CollapsedBranch { merge_hash, .. }) => merge_hash.clone(),
             Some(VisibleRow::DrillHeader { idx, .. }) => self.commits[*idx].hash.clone(),
-            None => return,
+            Some(VisibleRow::WorkingTree) | None => return,
         };
         if self.collapsed_merges.remove(&hash) {
             self.status_message = Some("Branch expanded.".into());

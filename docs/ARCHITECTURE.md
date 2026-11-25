@@ -58,7 +58,7 @@ layers, each knowing only the ones below it:
 | `main.rs` | CLI (`clap`), the non-interactive `--hash … --mod-*` path, terminal setup and restore, the event loop, the top-level `Error` |
 | `git/history.rs` | loading commits (streamed `git rev-list`), commit details, diff and stats, edit (`modify_commit`), squash, file search |
 | `git/reorder.rs` | moving a commit: a scripted `git rebase -i`, continue, abort |
-| `git/staging.rs` | status, stage/unstage, commit, per-file diff (libgit2) |
+| `git/staging.rs` | status, stage/unstage, commit, per-file diff, the working tree patch (libgit2) |
 | `git/stash.rs` | stash list, patch, stat, apply/pop/drop (git command) |
 | `git/graph.rs` | classic lane engine; `compute_merge_points` (which merge brought a commit in) |
 | `git/tree_layout.rs` | gitk-style layout for the focused view |
@@ -69,7 +69,7 @@ layers, each knowing only the ones below it:
 | `app/models.rs` | `Mode`, `ConfirmAction`, `CommitListView`, `VisibleRow`, … |
 | `app/layout.rs` | pane regions, popup rectangles, hit tests |
 | `app/input/` | `dispatch.rs` (keys), `mouse.rs`, `selection.rs` (mouse text selection), `clipboard.rs` |
-| `app/features/` | one file per feature: `commit_list`, `history_load`, `search`, `edit`, `squash`, `move_commit`, `staging`, `stash`, `context_menu`, `help` |
+| `app/features/` | one file per feature: `commit_list`, `history_load`, `search`, `edit`, `squash`, `move_commit`, `staging`, `working_tree`, `stash`, `context_menu`, `help` |
 | `app/editor/` | the vim-like multi-line editor shared by every message popup |
 | `ui/renderer.rs` | picks what to draw for the current mode |
 | `ui/screens/` | `commit_list`, `details`, `diff`, `staging`, `stash`, `debugger` |

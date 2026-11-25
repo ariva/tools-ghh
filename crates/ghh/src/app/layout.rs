@@ -149,7 +149,7 @@ impl App {
             Some(VisibleRow::Commit { idx, .. } | VisibleRow::DrillHeader { idx, .. }) => {
                 Some(*idx)
             }
-            Some(VisibleRow::CollapsedBranch { .. }) | None => None,
+            Some(VisibleRow::CollapsedBranch { .. } | VisibleRow::WorkingTree) | None => None,
         }
     }
 
@@ -170,13 +170,16 @@ impl App {
         if !rect_contains(info_rect, column, row) || row <= info_rect.y {
             return None;
         }
-        let commit = self.selected_commit()?;
-        let files = self.commit_diff_file_cache.get(&commit.hash)?;
-        let message = commit.full_message.as_deref().unwrap_or(&commit.message);
-        let message_lines = message.lines().count().max(1);
-        // Header block (hash/author/date/stats…) occupies 9 rows before the
-        // message; files start right after the message lines.
-        let first_file_line = 9 + message_lines;
+        let files = self.commit_diff_file_cache.get(self.selected_diff_key()?)?;
+        let first_file_line = match self.selected_commit() {
+            Some(commit) => {
+                let message = commit.full_message.as_deref().unwrap_or(&commit.message);
+                // Header block (hash/author/date/stats…) occupies 9 rows
+                // before the message; files start right after it.
+                9 + message.lines().count().max(1)
+            }
+            None => crate::app::features::working_tree::INFO_HEADER_LINES,
+        };
         let clicked_line = self.commit_diff_info_scroll + usize::from(row - info_rect.y - 1);
         clicked_line
             .checked_sub(first_file_line)

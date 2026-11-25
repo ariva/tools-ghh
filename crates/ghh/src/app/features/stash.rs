@@ -111,6 +111,7 @@ impl App {
                 self.stash = None;
                 self.nav.pop();
                 self.status_message = None;
+                self.refresh_working_tree();
             }
             KeyCode::Tab | KeyCode::BackTab => stash.diff_focused = !stash.diff_focused,
             KeyCode::Down | KeyCode::Char('j') => step(stash, 1),

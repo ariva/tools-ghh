@@ -80,6 +80,7 @@ pub(crate) fn spawn_initial_history_loader(
 
 impl App {
     pub fn maybe_finish_history_load(&mut self) {
+        self.maybe_finish_working_tree_load();
         if let Some(rx) = self.initial_history_loader_rx.take() {
             match rx.try_recv() {
                 Ok(Ok(HistoryBatch::FirstPage(commits, load_duration, timings))) => {
@@ -204,7 +205,9 @@ impl App {
             return;
         };
         if let Some(idx) = self.commit_position(&hash) {
-            self.list_state.select(Some(idx));
+            // Row space, not commit index: the two differ under a mask or
+            // with the working tree row on top.
+            self.select_commit_idx(idx);
             self.pending_reselect_hash = None;
             self.schedule_selected_stats_load();
         } else if !self.history_loading {
@@ -325,6 +328,7 @@ impl App {
     ) {
         let started = Instant::now();
         let selected_hash = self.selected_commit().map(|commit| commit.hash.clone());
+        let on_working_tree = self.working_tree_selected();
         let old_offset = self.list_state.offset();
         let old_len = self.commits.len();
         let stable_prefix = git::has_stable_commit_prefix(&self.commits, &commits);
@@ -370,14 +374,20 @@ impl App {
                 })
                 .collect();
         }
-        if let Some(hash) = selected_hash
+        self.ensure_working_tree_row();
+        if on_working_tree && self.working_tree_row_shown() {
+            self.list_state.select(Some(0));
+        } else if let Some(hash) = selected_hash
             && let Some(selected_idx) = self.commit_position(&hash)
         {
             // Row-space selection: in masked views the commit index is NOT
             // the row index (the old code selected the wrong row there).
             self.select_commit_idx(selected_idx);
         } else if !self.visible.is_empty() {
-            self.list_state.select(Some(0));
+            // Newest commit, not the working tree row above it.
+            let first_commit = usize::from(self.working_tree_row_shown());
+            self.list_state
+                .select(Some(first_commit.min(self.visible.len() - 1)));
         }
         *self.list_state.offset_mut() = old_offset.min(self.visible.len().saturating_sub(1));
         self.apply_pending_reselect();
@@ -610,6 +620,126 @@ mod tests {
                 .unwrap_or("")
                 .contains("mainline")
         );
+    }
+
+    fn dirty_files() -> Vec<git::FileStatus> {
+        [
+            ("a.rs", git::StageState::Staged, 'M'),
+            ("b.rs", git::StageState::Unstaged, 'M'),
+            ("c.rs", git::StageState::Untracked, '?'),
+        ]
+        .into_iter()
+        .map(|(path, stage_state, status_char)| git::FileStatus {
+            path: path.into(),
+            stage_state,
+            status_char,
+        })
+        .collect()
+    }
+
+    /// Dirty working tree: a row appears above the commits as number 0,
+    /// the selection stays on its commit, and the row goes when clean.
+    #[test]
+    fn working_tree_row_appears_on_top_and_goes_when_clean() {
+        use crate::app::models::VisibleRow;
+        let mut app = test_app_with(merge_chain(), "worktree-row");
+        app.select_commit_idx(2);
+
+        app.set_working_tree(dirty_files());
+        assert!(matches!(app.visible[0], VisibleRow::WorkingTree));
+        assert_eq!(app.visible.len(), app.commits.len() + 1);
+        assert_eq!(app.selected_commit_index(), Some(2), "selection moved");
+        assert_eq!(app.row_number(1), 1, "newest commit keeps number 1");
+        assert_eq!(
+            app.working_tree.title(),
+            "Uncommitted changes: 1 staged, 1 unstaged, 1 untracked"
+        );
+
+        app.set_working_tree(Vec::new());
+        assert!(matches!(app.visible[0], VisibleRow::Commit { idx: 0, .. }));
+        assert_eq!(app.selected_commit_index(), Some(2));
+        assert_eq!(app.row_number(0), 1);
+    }
+
+    /// The row is not a commit: commit actions do nothing on it, and a
+    /// drill view (commits of one merge) does not show it.
+    #[test]
+    fn working_tree_row_is_not_a_commit_and_stays_out_of_drill_views() {
+        let mut app = test_app_with(merge_chain(), "worktree-not-commit");
+        app.set_working_tree(dirty_files());
+        app.list_state.select(Some(0));
+        assert!(app.working_tree_selected());
+        assert!(app.selected_commit().is_none());
+        app.jump_to_merge_point();
+        app.drill_into_merge_of_selected();
+        app.toggle_collapse();
+        assert!(app.drill_stack.is_empty());
+        assert!(app.working_tree_selected(), "still on the row");
+
+        app.select_commit_idx(1);
+        app.drill_into_selected();
+        assert!(!app.working_tree_row_shown(), "no row inside a drill view");
+        app.drill_back();
+        assert!(app.working_tree_row_shown(), "row is back at the top level");
+    }
+
+    /// A history batch arriving later keeps the row and the newest commit
+    /// selected, not the row.
+    #[test]
+    fn working_tree_row_survives_history_batches() {
+        let mut app = test_app_with(merge_chain(), "worktree-batch");
+        app.set_working_tree(dirty_files());
+        app.list_state.select(None);
+        app.apply_progressive_commits(merge_chain(), "test.apply");
+        assert!(app.working_tree_row_shown());
+        assert_eq!(app.visible.len(), app.commits.len() + 1);
+        assert_eq!(app.selected_commit_index(), Some(0));
+
+        app.list_state.select(Some(0));
+        app.apply_progressive_commits(merge_chain(), "test.apply");
+        assert!(app.working_tree_selected(), "user's choice of the row kept");
+    }
+
+    /// Tab reaches the Details pane only on the working tree row; there
+    /// j/k scroll its file list and never run past the last file.
+    #[test]
+    fn working_tree_details_pane_takes_focus_and_scrolls() {
+        use crate::app::models::CommitListFocus;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let key = |code| KeyEvent::new(code, KeyModifiers::NONE);
+        let mut app = test_app_with(merge_chain(), "worktree-details");
+        app.show_commit_diff = false;
+        let mut files = dirty_files();
+        files.extend((0..40).map(|i| git::FileStatus {
+            path: format!("new{i}.txt"),
+            stage_state: git::StageState::Untracked,
+            status_char: '?',
+        }));
+        app.set_working_tree(files);
+
+        app.handle_normal(key(KeyCode::Tab));
+        assert_eq!(app.commit_list_focus, CommitListFocus::List, "commit row");
+
+        app.list_state.select(Some(0));
+        app.handle_normal(key(KeyCode::Tab));
+        assert_eq!(app.commit_list_focus, CommitListFocus::Details);
+        app.handle_normal(key(KeyCode::Char('j')));
+        app.handle_normal(key(KeyCode::Char('j')));
+        assert_eq!(app.working_tree.details_scroll, 2);
+        assert!(app.working_tree_selected(), "j scrolls, selection stays");
+        app.handle_normal(key(KeyCode::Char('G')));
+        let bottom = app.working_tree.details_scroll;
+        assert!(
+            bottom > 2 && bottom <= 43,
+            "stops at the last file: {bottom}"
+        );
+        app.handle_normal(key(KeyCode::Char('j')));
+        assert_eq!(app.working_tree.details_scroll, bottom);
+        app.handle_normal(key(KeyCode::Char('g')));
+        assert_eq!(app.working_tree.details_scroll, 0);
+
+        app.handle_normal(key(KeyCode::Tab));
+        assert_eq!(app.commit_list_focus, CommitListFocus::List);
     }
 
     /// M pressed again inside the view it opened: same merge, so no second

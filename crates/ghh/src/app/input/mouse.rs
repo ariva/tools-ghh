@@ -707,10 +707,9 @@ impl App {
                 && let Some((info_rect, _)) = diff_sections
                 && let Some(file_index) =
                     self.selected_diff_file_at(info_rect, mouse.column, mouse.row)
-                && let Some(commit) = self.selected_commit()
                 && let Some(file) = self
-                    .commit_diff_file_cache
-                    .get(&commit.hash)
+                    .selected_diff_key()
+                    .and_then(|key| self.commit_diff_file_cache.get(key))
                     .and_then(|files| files.get(file_index))
             {
                 self.commit_diff_scroll = file.diff_line;
@@ -722,6 +721,19 @@ impl App {
                 self.commit_diff_scroll = 0;
                 self.commit_diff_info_scroll = 0;
                 self.schedule_selected_stats_load();
+                return;
+            }
+            if (up || down || click)
+                && self.working_tree_selected()
+                && self
+                    .commit_details_region()
+                    .is_some_and(|details| Self::rect_contains(details, mouse.column, mouse.row))
+            {
+                if click {
+                    self.commit_list_focus = CommitListFocus::Details;
+                } else {
+                    self.scroll_working_tree_details(if up { -3 } else { 3 });
+                }
                 return;
             }
             if up || down {

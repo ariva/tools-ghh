@@ -238,6 +238,7 @@ impl App {
                 KeyCode::Esc => {
                     self.staging = None;
                     self.nav.pop();
+                    self.refresh_working_tree();
                 }
                 KeyCode::Down | KeyCode::Char('j') => staging.select_next(&repo_path),
                 KeyCode::Up | KeyCode::Char('k') => staging.select_prev(&repo_path),

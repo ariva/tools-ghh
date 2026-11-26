@@ -153,7 +153,13 @@ fn render_frame(frame: &mut Frame, app: &mut App) {
         // This branch returns early, so it must draw the help overlay itself
         // (the [ Help ] button sets show_help while the popup is open).
         if app.show_help {
-            popups::render_help_popup(frame, app.help_title(), &app.help_lines(), frame.area());
+            popups::render_help_popup(
+                frame,
+                app.help_title(),
+                &app.help_lines(),
+                app.help_scroll,
+                frame.area(),
+            );
         } else {
             popups::render_search_popup(frame, app, frame.area());
         }
@@ -266,7 +272,13 @@ fn render_frame(frame: &mut Frame, app: &mut App) {
     }
 
     if app.show_help && app.context_menu.is_none() {
-        popups::render_help_popup(frame, app.help_title(), &app.help_lines(), area);
+        popups::render_help_popup(
+            frame,
+            app.help_title(),
+            &app.help_lines(),
+            app.help_scroll,
+            area,
+        );
     }
 
     if let Some(menu_area) = app.context_menu_rect()

@@ -15,6 +15,42 @@ impl App {
         )
     }
 
+    /// Opens the help popup at its first line.
+    pub(crate) fn open_help(&mut self) {
+        self.show_help = true;
+        self.help_scroll = 0;
+    }
+
+    /// Scrolls the help text by `lines` plus `pages` popup pages (negative =
+    /// up), stopping at the first and the last line.
+    pub(crate) fn scroll_help(&mut self, lines: isize, pages: isize) {
+        let Some(popup) = self.help_popup_rect() else {
+            return;
+        };
+        self.help_scroll = help_scroll_target(
+            self.help_scroll,
+            self.help_lines().len(),
+            popup,
+            lines,
+            pages,
+        );
+    }
+
+    /// One mouse wheel event over the help popup.
+    pub(crate) fn wheel_help(&mut self, up: bool) {
+        let Some(popup) = self.help_popup_rect() else {
+            return;
+        };
+        let max = crate::app::layout::help_max_scroll(self.help_lines().len(), popup);
+        self.help_scroll = crate::app::layout::wheel_target(
+            self.help_scroll,
+            self.drawn_scroll.help,
+            up,
+            crate::app::layout::help_text_pane(popup),
+        )
+        .min(max);
+    }
+
     pub fn help_title(&self) -> &'static str {
         match self.mode() {
             Mode::Normal => "Commit List Help",
@@ -198,5 +234,50 @@ impl App {
             ],
             _ => vec!["Enter, Esc  close help".into()],
         }
+    }
+}
+
+/// Where `lines` plus `pages` pages take the help text from `current`,
+/// kept between the first line and `help_max_scroll`.
+fn help_scroll_target(
+    current: usize,
+    line_count: usize,
+    popup: ratatui::layout::Rect,
+    lines: isize,
+    pages: isize,
+) -> usize {
+    use crate::app::layout::{help_max_scroll, help_text_pane, pane_page_step};
+    let page = pane_page_step(help_text_pane(popup)) as isize;
+    current
+        .saturating_add_signed(lines.saturating_add(pages.saturating_mul(page)))
+        .min(help_max_scroll(line_count, popup))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::help_scroll_target;
+    use crate::app::layout::help_popup_rect_in;
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn help_scroll_stops_at_first_and_last_line() {
+        // 80x24: popup 22 rows, 18 of them text; 50 lines -> last start is 32.
+        let popup = help_popup_rect_in(50, Rect::new(0, 0, 80, 24));
+        assert_eq!(help_scroll_target(0, 50, popup, 1, 0), 1);
+        assert_eq!(help_scroll_target(0, 50, popup, -1, 0), 0, "stops at top");
+        assert_eq!(
+            help_scroll_target(0, 50, popup, 0, 1),
+            17,
+            "page = rows - 1"
+        );
+        assert_eq!(help_scroll_target(30, 50, popup, 0, 1), 32, "stops at end");
+        assert_eq!(help_scroll_target(5, 50, popup, isize::MAX, 0), 32, "G");
+        assert_eq!(help_scroll_target(5, 50, popup, isize::MIN, 0), 0, "g");
+    }
+
+    #[test]
+    fn help_that_fits_does_not_scroll() {
+        let popup = help_popup_rect_in(5, Rect::new(0, 0, 80, 24));
+        assert_eq!(help_scroll_target(0, 5, popup, 1, 1), 0);
     }
 }

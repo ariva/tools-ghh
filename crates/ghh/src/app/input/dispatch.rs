@@ -80,12 +80,19 @@ impl App {
                 | KeyCode::BackTab => {
                     self.show_help = false;
                 }
+                // Text longer than the popup: the list keys scroll it.
+                KeyCode::Down | KeyCode::Char('j') => self.scroll_help(1, 0),
+                KeyCode::Up | KeyCode::Char('k') => self.scroll_help(-1, 0),
+                KeyCode::PageDown | KeyCode::Char('p') => self.scroll_help(0, 1),
+                KeyCode::PageUp | KeyCode::Char('P') => self.scroll_help(0, -1),
+                KeyCode::End | KeyCode::Char('G') => self.scroll_help(isize::MAX, 0),
+                KeyCode::Home | KeyCode::Char('g') => self.scroll_help(isize::MIN, 0),
                 _ => {}
             }
             return false;
         }
         if matches!(key.code, KeyCode::Char('h') | KeyCode::Char('?')) && self.can_open_help() {
-            self.show_help = true;
+            self.open_help();
             return false;
         }
         if key.code == KeyCode::Esc && self.text_selection.is_some() {

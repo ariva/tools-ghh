@@ -1900,7 +1900,7 @@ impl App {
             1 => self.cancel_search(),
             // '?' types into the inputs, so Search mode blocks the help key
             // (can_open_help) — the [ Help ] button is the way in here.
-            3 => self.show_help = true,
+            3 => self.open_help(),
             4 => self.search.file_full_history = !self.search.file_full_history,
             5 => self.search.file_action = self.search.file_action.next(),
             _ => {

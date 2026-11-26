@@ -93,6 +93,8 @@ pub struct App {
     pub show_commit_diff: bool,
     pub commit_list_focus: CommitListFocus,
     pub show_help: bool,
+    /// First help line shown, when the text is longer than the popup.
+    pub(crate) help_scroll: usize,
     pub context_menu: Option<ContextMenuState>,
     pub text_selection: Option<TextSelection>,
     pub(crate) text_selection_drag_start: Option<(u16, u16)>,
@@ -197,6 +199,7 @@ impl App {
             show_commit_diff,
             commit_list_focus: CommitListFocus::List,
             show_help: false,
+            help_scroll: 0,
             context_menu: None,
             text_selection: None,
             text_selection_drag_start: None,
@@ -237,6 +240,7 @@ impl App {
             details: self.working_tree.details_scroll,
             staging_diff: self.staging.as_ref().map_or(0, |s| s.diff_scroll),
             stash_diff: self.stash.as_ref().map_or(0, |s| s.diff_scroll),
+            help: self.help_scroll,
         };
     }
 

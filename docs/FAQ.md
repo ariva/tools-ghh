@@ -102,6 +102,7 @@ force-push afterwards. Each asks before doing anything.
 | 6.5 | `Ctrl+Backspace` does not clear a field. | most terminals do not report that chord; use `Alt+Backspace` or `Ctrl+U` | [README](../README.md#search-clearing-an-input-field) |
 | 6.6 | My terminal is broken after ghh was killed. | run `reset` | |
 | 6.7 | "stash list changed outside the app" | another terminal added or removed a stash; press `r` and try again | |
+| 6.8 | The help popup is cut off at the bottom. | it scrolls when the terminal is too short for it: `j`/`k`, `PgDn`/`PgUp` (or `p`/`P`), `g`/`G`, or the mouse wheel; the title says so and the right border shows where you are | |
 
 ## Keeping this file and the help popup in step
 

@@ -52,10 +52,16 @@ impl App {
         self.mouse_scroll_and_click(mouse)
     }
 
-    /// Help overlay: [X]/[ OK ]/outside close; everything else is inert.
+    /// Help overlay: [X]/[ OK ]/outside close, the wheel scrolls the text;
+    /// everything else is inert.
     fn mouse_in_help(&mut self, mouse: MouseEvent) -> bool {
         let click = matches!(mouse.kind, MouseEventKind::Down(_));
         if self.show_help {
+            match mouse.kind {
+                MouseEventKind::ScrollUp => self.wheel_help(true),
+                MouseEventKind::ScrollDown => self.wheel_help(false),
+                _ => {}
+            }
             if click {
                 match self.help_popup_rect() {
                     Some(popup) if Self::rect_contains(popup, mouse.column, mouse.row) => {

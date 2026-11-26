@@ -128,6 +128,7 @@ pub(crate) struct DrawnScroll {
     pub details: usize,
     pub staging_diff: usize,
     pub stash_diff: usize,
+    pub help: usize,
 }
 
 /// Where one wheel event takes a pane: `pane_wheel_step` lines from
@@ -1015,6 +1016,24 @@ pub fn help_popup_rect_in(lines: usize, area: Rect) -> Rect {
         width,
         height,
     )
+}
+
+/// The part of the help popup the key list scrolls in: the popup without
+/// the blank row and the [ OK ] row at the bottom. Shaped like a bordered
+/// pane so `pane_page_step` / `wheel_target` apply to it.
+pub(crate) fn help_text_pane(popup: Rect) -> Rect {
+    Rect::new(
+        popup.x,
+        popup.y,
+        popup.width,
+        popup.height.saturating_sub(2),
+    )
+}
+
+/// Furthest the help text scrolls: its last line on the last text row.
+/// Zero when everything fits.
+pub(crate) fn help_max_scroll(lines: usize, popup: Rect) -> usize {
+    lines.saturating_sub(usize::from(help_text_pane(popup).height.saturating_sub(2)))
 }
 
 /// Help popup [X] close mark: top-right corner of the border row.

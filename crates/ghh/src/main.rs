@@ -1,6 +1,7 @@
 mod app;
 mod automation;
 mod events;
+mod faq;
 mod git;
 mod settings;
 mod stats;
@@ -146,6 +147,26 @@ struct Cli {
     /// the existing file keeps auto-updating without this flag).
     #[arg(long = "save-local-settings")]
     save_local_settings: bool,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Print the FAQ: questions and the key or option that answers each.
+    /// Words narrow the list: `ghh faq stash`, `ghh faq move conflict`,
+    /// `ghh faq 3` (a section), `ghh faq 3.7` (one row).
+    Faq {
+        /// Section number, row number, or words that must all appear
+        words: Vec<String>,
+        /// Only rows whose answer names this key, case kept: `-k E`
+        #[arg(short = 'k', long = "key", value_name = "KEY")]
+        key: Vec<String>,
+        /// Print the rows as a JSON array
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Everything that can end the program: each layer's error, plus terminal I/O.
@@ -183,6 +204,11 @@ fn run() -> Result<()> {
         );
     }
     let cli = Cli::parse();
+    // Needs no repository and no terminal setup.
+    if let Some(Command::Faq { words, key, json }) = &cli.command {
+        faq::run(words, key, *json);
+        return Ok(());
+    }
     if cli.ascii || std::env::var_os("GHH_ASCII").is_some_and(|v| v != "0") {
         ui::helpers::ASCII_SYMBOLS.store(true, std::sync::atomic::Ordering::Relaxed);
     }
@@ -862,5 +888,40 @@ mod cli_tests {
         );
         // Both at once is a user error, not a silent precedence.
         assert!(Cli::try_parse_from(["ghh", "/a", "--path", "/b"]).is_err());
+    }
+
+    /// `faq` is a subcommand; a directory of that name is still reachable
+    /// as `./faq` or `--path faq`.
+    #[test]
+    fn faq_is_a_subcommand_beside_the_repo_argument() {
+        use super::Command;
+        let cli = Cli::try_parse_from(["ghh", "faq"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::Faq { .. })));
+        assert!(cli.repo_positional.is_none());
+
+        let cli = Cli::try_parse_from(["ghh", "faq", "stash", "pop", "-k", "E", "--json"]).unwrap();
+        let Some(Command::Faq { words, key, json }) = cli.command else {
+            panic!("not parsed as faq");
+        };
+        assert_eq!(
+            (words, key, json),
+            (
+                vec!["stash".to_string(), "pop".to_string()],
+                vec!["E".to_string()],
+                true
+            )
+        );
+
+        for args in [vec!["ghh", "./faq"], vec!["ghh", "--path", "faq"]] {
+            let cli = Cli::try_parse_from(args).unwrap();
+            assert!(cli.command.is_none());
+            assert!(cli.repo_positional.unwrap_or(cli.path).ends_with("faq"));
+        }
+        assert!(
+            Cli::try_parse_from(["ghh", "/tmp/repo"])
+                .unwrap()
+                .command
+                .is_none()
+        );
     }
 }

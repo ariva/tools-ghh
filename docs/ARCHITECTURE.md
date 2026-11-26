@@ -78,6 +78,7 @@ layers, each knowing only the ones below it:
 | `events/` | `AppEvent`, `EventBus` (ring buffer of the last 500 events) |
 | `tracer.rs` | `tracing` setup: log file plus a layer that forwards into the event bus |
 | `settings.rs` | global and per-repository settings ([SETTINGS.md](SETTINGS.md)) |
+| `faq.rs` | `ghh faq`: parses the compiled-in [FAQ.md](FAQ.md), filters, prints text or JSON. CLI only: no `git/`, `app/`, `ui/` |
 | `stats/` | timing collector and report behind `--stats` |
 | `automation/` | `--auto`: scripted key input from a string or a file |
 

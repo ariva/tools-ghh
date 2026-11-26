@@ -136,8 +136,10 @@ A feature is one file per layer.
    called from `ui/renderer.rs`.
 7. `app/features/help.rs`: the keys, for the help popup.
 8. `events/models.rs`: a `ScreenId` for the debugger.
-9. Docs: the README section, a row in [FAQ.md](FAQ.md), a row in the
-   module table of [ARCHITECTURE.md](ARCHITECTURE.md). A new settings
+9. Docs: the README section, a row in [FAQ.md](FAQ.md) (at the end of
+   its section; `ghh faq` prints that file and a test checks the
+   numbering), a row in the module table of
+   [ARCHITECTURE.md](ARCHITECTURE.md). A new settings
    key also goes into [SETTINGS.md](SETTINGS.md).
 
 `stash` is the smallest complete example: `git/stash.rs`,

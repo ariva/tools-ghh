@@ -1,5 +1,5 @@
 # GIT Handy Helper
-[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [FAQ command](#faq-at-the-command-line-ghh-faq) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
 `ghh` (git handy helper) is a terminal UI for browsing, searching, analyzing and
 rewriting Git history: a commit graph with merged branches you can collapse or drill
@@ -233,11 +233,31 @@ Print runtime, event-loop, rendering, commit-count, and application timing stati
 ghh --stats
 ```
 
+## FAQ at the command line (`ghh faq`)
+
+`ghh faq` prints the questions of [docs/FAQ.md](docs/FAQ.md) and the key or
+option that answers each. It opens no repository and no screen, so it works
+anywhere.
+
+```sh
+ghh faq                  # everything, by section
+ghh faq stash            # rows that mention "stash" (case ignored)
+ghh faq move conflict    # every word must appear: title, question or answer
+ghh faq 3                # section 3
+ghh faq 3.7              # one row
+ghh faq -k E             # what does the key E do? (case kept: -k e is edit)
+ghh faq stash --json     # the rows as a JSON array
+```
+
+Nothing found is not an error: it says so and exits with 0 (`--json` prints
+`[]`). A directory that is really named `faq` opens with `ghh ./faq` or
+`ghh --path faq`.
+
 ## Documentation
 
 | | |
 |---|---|
-| [docs/FAQ.md](docs/FAQ.md) | questions and the key that answers each |
+| [docs/FAQ.md](docs/FAQ.md) | questions and the key that answers each; also `ghh faq` |
 | [docs/SETTINGS.md](docs/SETTINGS.md) | every settings key |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | how the code is put together, module by module, and why |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | building, testing, adding a feature |

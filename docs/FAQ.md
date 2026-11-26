@@ -5,6 +5,14 @@ the commit list unless a row says otherwise. The same keys are listed
 inside the tool: `h` or `?` opens help for the screen you are on. The
 "More" column links to the longer explanation where there is one.
 
+The same list at the command line, without opening a repository:
+`ghh faq`. Words narrow it: `ghh faq stash`, `ghh faq move conflict`
+(every word must appear in the section title, question or answer),
+`ghh faq 3` (a section), `ghh faq 3.7` (one row), `ghh faq -k E` (rows
+whose answer names the key `E`, case kept). `--json` prints the rows as
+JSON. A new row goes at the end of its section: the command reads this
+file, and `just check` fails on a number out of order.
+
 ## 1. Looking around
 
 | # | Question | Answer | More |
@@ -58,16 +66,16 @@ force-push afterwards. Each asks before doing anything.
 | # | Question | Answer | More |
 |---|---|---|---|
 | 4.1 | How do I commit my changes? | `s`, `Space` on each file (it moves on to the next one; `a` stages all), `Enter`, type the message in the editor, Save. The line `Enter: write the message and commit` under the panes shows when something is staged | |
-| 4.8 | What is row 0, "Uncommitted changes", on top of the list? | everything not committed yet: staged, unstaged and untracked files. Select it to see the files in Details, `Tab` to Details scrolls a long file list, `v` shows their changes, `Enter` opens staging. No such row when the working tree is clean | [README](../README.md#uncommitted-changes-row-0) |
 | 4.2 | How do I unstage a file? | select it in the staged group on top and press `Space`; `u` unstages everything | |
-| 4.11 | How do I leave the staging screen? | `Esc` or `Backspace` from the file list; from the diff either one goes to the file list first | |
-| 4.10 | How do I move fast through a long file list or diff in staging? | `PgDn`/`PgUp` (or `p`/`P`) page the pane that has focus, `g`/`G` jump to its start and end; `Tab` switches between file list and diff | |
-| 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group; the cursor goes to the file that was under it | |
 | 4.3 | How do I write a longer commit message? | the editor `Enter` opens in staging takes as many lines as you like; first line is the subject | |
 | 4.4 | Can I stage part of a file? | no, whole files only | [not built](ARCHITECTURE.md#not-built) |
 | 4.5 | How do I look at my stashes? | `S` | [README](../README.md#browse-stashes-s) |
 | 4.6 | How do I bring a stash back? | in the stash screen: `a` applies and keeps it, `p` applies and removes it | [README](../README.md#browse-stashes-s) |
 | 4.7 | How do I delete a stash? | `d` in the stash screen; it asks, and the default is No | |
+| 4.8 | What is row 0, "Uncommitted changes", on top of the list? | everything not committed yet: staged, unstaged and untracked files. Select it to see the files in Details, `Tab` to Details scrolls a long file list, `v` shows their changes, `Enter` opens staging. No such row when the working tree is clean | [README](../README.md#uncommitted-changes-row-0) |
+| 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group; the cursor goes to the file that was under it | |
+| 4.10 | How do I move fast through a long file list or diff in staging? | `PgDn`/`PgUp` (or `p`/`P`) page the pane that has focus, `g`/`G` jump to its start and end; `Tab` switches between file list and diff | |
+| 4.11 | How do I leave the staging screen? | `Esc` or `Backspace` from the file list; from the diff either one goes to the file list first | |
 
 ## 5. Options and files
 
@@ -81,6 +89,7 @@ force-push afterwards. Each asks before doing anything.
 | 5.6 | How slow was that? | `ghh --stats` prints timings on exit | [README](../README.md#statistics---stats) |
 | 5.7 | How do I replay keys for a demo or a test? | `ghh --auto "ARROW_DOWN,ENTER"` or `--auto keys.txt`, with `--auto-delay <ms>` | [README](../README.md#automation) |
 | 5.8 | Which version is this? | `ghh --version` | |
+| 5.9 | How do I read this FAQ in the terminal? | `ghh faq`; `ghh faq stash` or `ghh faq 3.7` narrows it, `ghh faq -k E` asks what a key does | [README](../README.md#faq-at-the-command-line-ghh-faq) |
 
 ## 6. When something looks wrong
 

@@ -588,13 +588,22 @@ impl App {
         let Some((list_rect, diff_rect, _)) = self.stash_regions() else {
             return;
         };
+        let drawn = self.drawn_scroll.stash_diff;
         let Some(stash) = self.stash.as_mut() else {
             return;
         };
         let row = stash.list_state.selected().unwrap_or(0);
         if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
             stash.diff_focused = delta == 0 || stash.diff_focused;
-            stash.scroll_diff(delta * crate::app::layout::pane_wheel_step(diff_rect) as isize);
+            if delta != 0 {
+                stash.diff_scroll = crate::app::layout::wheel_target(
+                    stash.diff_scroll,
+                    drawn,
+                    delta < 0,
+                    diff_rect,
+                );
+                stash.scroll_diff(0); // stops at the end of the patch
+            }
         } else if Self::rect_contains(list_rect, mouse.column, mouse.row) {
             let target = if delta == 0 {
                 stash.diff_focused = false;
@@ -620,6 +629,7 @@ impl App {
         let down = mouse.kind == MouseEventKind::ScrollDown;
         let click = matches!(mouse.kind, MouseEventKind::Down(_));
         let staging_regions = self.staging_regions();
+        let drawn = self.drawn_scroll.staging_diff;
         if let Some(s) = self.staging.as_mut()
             && let Some((files_rect, diff_rect, msg_rect)) = staging_regions
         {
@@ -634,12 +644,8 @@ impl App {
             }
             if up || down {
                 if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
-                    let step = crate::app::layout::pane_wheel_step(diff_rect);
-                    if up {
-                        s.diff_scroll = s.diff_scroll.saturating_sub(step);
-                    } else {
-                        s.diff_scroll = s.diff_scroll.saturating_add(step);
-                    }
+                    s.diff_scroll =
+                        crate::app::layout::wheel_target(s.diff_scroll, drawn, up, diff_rect);
                 } else if Self::rect_contains(files_rect, mouse.column, mouse.row) {
                     if up {
                         let prev = match s.list_state.selected() {
@@ -732,8 +738,13 @@ impl App {
                 if click {
                     self.commit_list_focus = CommitListFocus::Details;
                 } else {
-                    let step = crate::app::layout::pane_wheel_step(details) as isize;
-                    self.scroll_working_tree_details(if up { -step } else { step });
+                    self.working_tree.details_scroll = crate::app::layout::wheel_target(
+                        self.working_tree.details_scroll,
+                        self.drawn_scroll.details,
+                        up,
+                        details,
+                    );
+                    self.scroll_working_tree_details(0); // stops at the last file
                 }
                 return;
             }
@@ -742,14 +753,12 @@ impl App {
                     && Self::rect_contains(info_rect, mouse.column, mouse.row)
                 {
                     let previous = self.commit_diff_info_scroll;
-                    let step = crate::app::layout::pane_wheel_step(info_rect);
-                    if up {
-                        self.commit_diff_info_scroll =
-                            self.commit_diff_info_scroll.saturating_sub(step);
-                    } else {
-                        self.commit_diff_info_scroll =
-                            self.commit_diff_info_scroll.saturating_add(step);
-                    }
+                    self.commit_diff_info_scroll = crate::app::layout::wheel_target(
+                        self.commit_diff_info_scroll,
+                        self.drawn_scroll.info,
+                        up,
+                        info_rect,
+                    );
                     self.preserve_text_selection_on_scroll(
                         info_rect,
                         !up,
@@ -764,15 +773,13 @@ impl App {
                         .unwrap_or(false)
                 {
                     let previous = self.commit_diff_scroll;
-                    let step = diff_sections.map_or(3, |(_, patch_rect)| {
-                        crate::app::layout::pane_wheel_step(patch_rect)
-                    });
-                    if up {
-                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_sub(step);
-                    } else {
-                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_add(step);
-                    }
                     if let Some((_, diff_rect)) = diff_sections {
+                        self.commit_diff_scroll = crate::app::layout::wheel_target(
+                            self.commit_diff_scroll,
+                            self.drawn_scroll.diff,
+                            up,
+                            diff_rect,
+                        );
                         self.preserve_text_selection_on_scroll(
                             diff_rect,
                             !up,

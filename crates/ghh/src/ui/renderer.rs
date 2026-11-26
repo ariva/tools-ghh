@@ -131,6 +131,13 @@ fn render_modal_overlay(frame: &mut Frame, popup: Option<Rect>) {
 }
 
 pub fn render(frame: &mut Frame, app: &mut App) {
+    render_frame(frame, app);
+    // After drawing, so the positions are the ones the frame really shows
+    // (drawing stops them at the end of each pane).
+    app.remember_drawn_scroll();
+}
+
+fn render_frame(frame: &mut Frame, app: &mut App) {
     // Debugger overlay takes the whole screen.
     if matches!(app.mode(), Mode::Debugger) {
         super::screens::render_debugger(frame, app);

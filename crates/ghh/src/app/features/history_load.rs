@@ -775,6 +775,9 @@ mod tests {
             "pane is still full, not one line at the top"
         );
         assert!(app.commit_diff_info_scroll < 50);
+        // The wheel handlers measure bursts from what this frame showed.
+        assert_eq!(app.drawn_scroll.diff, app.commit_diff_scroll);
+        assert_eq!(app.drawn_scroll.info, app.commit_diff_info_scroll);
     }
 
     /// M pressed again inside the view it opened: same merge, so no second

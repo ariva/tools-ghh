@@ -98,6 +98,30 @@ pub(crate) fn pane_wheel_step(rect: Rect) -> usize {
     pane_page_step(rect).min(3)
 }
 
+/// Scroll positions the last drawn frame showed, per wheel-scrolled pane.
+/// A terminal sends several wheel events per notch and they are all
+/// handled before the next frame; measured from here, a burst cannot
+/// carry a pane past lines that were never on screen.
+#[derive(Default, Clone, Copy)]
+pub(crate) struct DrawnScroll {
+    pub info: usize,
+    pub diff: usize,
+    pub details: usize,
+    pub staging_diff: usize,
+    pub stash_diff: usize,
+}
+
+/// Where one wheel event takes a pane: `pane_wheel_step` lines from
+/// `current`, at most one page away from `drawn`, the position on screen.
+pub(crate) fn wheel_target(current: usize, drawn: usize, up: bool, rect: Rect) -> usize {
+    let (step, page) = (pane_wheel_step(rect), pane_page_step(rect));
+    if up {
+        current.saturating_sub(step).max(drawn.saturating_sub(page))
+    } else {
+        current.saturating_add(step).min(drawn.saturating_add(page))
+    }
+}
+
 /// Lines a PageUp/PageDown jumps inside a bordered pane.
 pub(crate) fn pane_page_step(rect: Rect) -> usize {
     usize::from(rect.height.saturating_sub(2))
@@ -543,6 +567,21 @@ mod tests {
         assert_eq!(pane_wheel_step(pane(5)), 2); // 3 text rows
         assert_eq!(pane_wheel_step(pane(4)), 1); // 2 text rows
         assert_eq!(pane_wheel_step(pane(3)), 1); // 1 text row
+    }
+
+    /// A burst of wheel events between two frames: the pane moves one
+    /// page at most, so the next frame starts on a line already seen.
+    #[test]
+    fn wheel_burst_moves_at_most_one_page_from_the_drawn_frame() {
+        let pane = Rect::new(0, 0, 40, 8); // 6 text rows, page step 5
+        let burst = |from: usize, up: bool| {
+            (0..5).fold(from, |scroll, _| wheel_target(scroll, from, up, pane))
+        };
+        assert_eq!(burst(0, false), 5, "line 5 was the last one on screen");
+        assert_eq!(burst(20, true), 15);
+        assert_eq!(burst(2, true), 0);
+        // One event alone still moves the usual three lines.
+        assert_eq!(wheel_target(0, 0, false, pane), 3);
     }
 
     #[test]

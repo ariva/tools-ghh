@@ -75,6 +75,8 @@ pub struct App {
     pub squash: Option<SquashState>,
     pub stash: Option<crate::app::features::stash::StashState>,
     pub working_tree: crate::app::features::working_tree::WorkingTreeState,
+    /// Scroll positions of the last drawn frame (see `DrawnScroll`).
+    pub(crate) drawn_scroll: crate::app::layout::DrawnScroll,
     pub move_state: Option<crate::app::models::MoveState>,
     pub squash_msg: Option<SquashMessageState>,
     pub commit_msg_editor: Option<MultilineEditor>,
@@ -177,6 +179,7 @@ impl App {
             move_state: None,
             stash: None,
             working_tree: Default::default(),
+            drawn_scroll: Default::default(),
             squash_msg: None,
             commit_msg_editor: None,
             editor_save_selected: true,
@@ -218,6 +221,17 @@ impl App {
         app.refresh_working_tree();
         app.schedule_selected_stats_load();
         app
+    }
+
+    /// Called once per drawn frame; the wheel handlers measure from this.
+    pub fn remember_drawn_scroll(&mut self) {
+        self.drawn_scroll = crate::app::layout::DrawnScroll {
+            info: self.commit_diff_info_scroll,
+            diff: self.commit_diff_scroll,
+            details: self.working_tree.details_scroll,
+            staging_diff: self.staging.as_ref().map_or(0, |s| s.diff_scroll),
+            stash_diff: self.stash.as_ref().map_or(0, |s| s.diff_scroll),
+        };
     }
 
     /// The active mode (top of the navigation stack).

@@ -250,11 +250,109 @@ impl App {
         }
     }
 
+    fn selected_diff_files(&self) -> &[crate::app::CommitDiffFile] {
+        self.selected_diff_key()
+            .and_then(|key| self.commit_diff_file_cache.get(key))
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// The one file the patch pane is narrowed to, if any. A pick made for
+    /// another commit does not count.
+    pub(crate) fn diff_file_only(&self) -> Option<usize> {
+        let (key, index) = self.diff_file_only.as_ref()?;
+        let files = self.selected_diff_files();
+        (self.selected_diff_key() == Some(key.as_str()) && files.len() > 1 && *index < files.len())
+            .then_some(*index)
+    }
+
+    /// Which lines of the selected diff the patch pane shows: all of them,
+    /// or the part of the one file picked. `None` while the diff loads.
+    pub(crate) fn shown_diff_range(&self) -> Option<std::ops::Range<usize>> {
+        let lines = self.commit_diff_cache.get(self.selected_diff_key()?)?;
+        let Some(only) = self.diff_file_only() else {
+            return Some(0..lines.len());
+        };
+        let files = self.selected_diff_files();
+        let start = files[only].diff_line.min(lines.len());
+        let mut end = files
+            .get(only + 1)
+            .map_or(lines.len(), |next| next.diff_line.min(lines.len()))
+            .max(start);
+        // Row 0: the heading of the next section is not part of this file.
+        while end > start && lines[end - 1].starts_with('\u{2500}') {
+            end -= 1;
+        }
+        Some(start..end)
+    }
+
+    pub(crate) fn shown_diff_lines(&self) -> Option<&[String]> {
+        let range = self.shown_diff_range()?;
+        Some(&self.commit_diff_cache.get(self.selected_diff_key()?)?[range])
+    }
+
+    /// With all files shown: the file the patch pane is scrolled into.
+    pub(crate) fn scrolled_into_diff_file(&self) -> Option<usize> {
+        let files = self.selected_diff_files();
+        if files.is_empty() || self.diff_file_only().is_some() {
+            return None;
+        }
+        Some(
+            files
+                .iter()
+                .rposition(|file| file.diff_line <= self.commit_diff_scroll)
+                .unwrap_or(0),
+        )
+    }
+
+    /// Rows of the Files column: "All files" first when there is more than
+    /// one file, then the files.
+    pub(crate) fn files_rows(&self) -> usize {
+        match self.selected_diff_files().len() {
+            count @ 0..=1 => count,
+            count => count + 1,
+        }
+    }
+
+    /// The row of the Files column that is picked.
+    pub(crate) fn files_row(&self) -> usize {
+        self.diff_file_only().map_or(0, |index| index + 1)
+    }
+
+    /// Pick a row of the Files column: a file narrows the patch pane to its
+    /// changes; "All files" shows everything again, at the file left.
+    pub(crate) fn select_files_row(&mut self, row: usize) {
+        let files = self.selected_diff_files();
+        if files.len() < 2 || row > files.len() {
+            return;
+        }
+        let was = self.diff_file_only();
+        if row == 0 {
+            self.commit_diff_scroll = was.map_or(self.commit_diff_scroll, |i| files[i].diff_line);
+            self.diff_file_only = None;
+        } else if was != Some(row - 1) {
+            self.diff_file_only = self
+                .selected_diff_key()
+                .map(|key| (key.to_string(), row - 1));
+            self.commit_diff_scroll = 0;
+        }
+        self.clear_text_selection();
+    }
+
+    /// Move the pick in the Files column, stopping at its first and last row.
+    pub(crate) fn move_files_row(&mut self, delta: isize) {
+        let last = self.files_rows().saturating_sub(1);
+        self.select_files_row(self.files_row().saturating_add_signed(delta).min(last));
+    }
+
     pub(crate) fn cycle_commit_diff_focus(&mut self, forward: bool) {
         // Panes that exist right now, in Tab order.
         let mut panes = vec![CommitListFocus::List];
         if self.show_commit_diff {
-            panes.extend([CommitListFocus::DiffInfo, CommitListFocus::Diff]);
+            panes.extend([
+                CommitListFocus::DiffInfo,
+                CommitListFocus::Files,
+                CommitListFocus::Diff,
+            ]);
         }
         if self.working_tree_selected() {
             panes.push(CommitListFocus::Details);

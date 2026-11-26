@@ -86,11 +86,7 @@ impl App {
             Mode::Normal => {
                 if let Some((info, diff)) = self.commit_diff_regions() {
                     if Self::rect_contains(diff, column, row) {
-                        return self.selected_diff_key().and_then(|key| {
-                            self.commit_diff_cache
-                                .get(key)
-                                .map(|lines| lines.join("\n"))
-                        });
+                        return self.shown_diff_lines().map(|lines| lines.join("\n"));
                     }
                     if Self::rect_contains(info, column, row) {
                         let commit = self.selected_commit()?;

@@ -86,6 +86,10 @@ pub struct App {
     pub commit_diff_file_cache: HashMap<String, Vec<CommitDiffFile>>,
     pub commit_diff_scroll: usize,
     pub commit_diff_info_scroll: usize,
+    /// File the patch pane is narrowed to, picked in the Files column, with
+    /// the diff key it was picked for; `None` = all files.
+    pub diff_file_only: Option<(String, usize)>,
+    pub diff_files_state: ListState,
     pub show_commit_diff: bool,
     pub commit_list_focus: CommitListFocus,
     pub show_help: bool,
@@ -188,6 +192,8 @@ impl App {
             commit_diff_file_cache: HashMap::new(),
             commit_diff_scroll: 0,
             commit_diff_info_scroll: 0,
+            diff_file_only: None,
+            diff_files_state: ListState::default(),
             show_commit_diff,
             commit_list_focus: CommitListFocus::List,
             show_help: false,

@@ -46,16 +46,10 @@ pub(crate) fn commit_list_regions_in(area: Rect, show_diff: bool, splits: Splits
     (mid[0], mid[1])
 }
 
-/// Split the diff column into the file/info pane (top) and patch pane (bottom).
-pub(crate) fn commit_diff_regions_in(
-    area: Rect,
-    show_diff: bool,
-    splits: Splits,
-) -> Option<(Rect, Rect)> {
-    if !show_diff {
-        return None;
-    }
-    let (_, diff) = commit_list_regions_in(area, show_diff, splits);
+/// The diff column: info pane on top; under it the files column and the
+/// patch pane.
+fn diff_column_parts(area: Rect, splits: Splits) -> (Rect, Rect, Rect) {
+    let (_, diff) = commit_list_regions_in(area, true, splits);
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -63,7 +57,32 @@ pub(crate) fn commit_diff_regions_in(
             Constraint::Percentage(100 - splits.diff_info_pct),
         ])
         .split(diff);
-    Some((sections[0], sections[1]))
+    let files_pct = splits.files_pct.min(100);
+    let lower = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(files_pct),
+            Constraint::Percentage(100 - files_pct),
+        ])
+        .split(sections[1]);
+    (sections[0], lower[0], lower[1])
+}
+
+/// Info pane (top) and patch pane (bottom) of the diff column.
+pub(crate) fn commit_diff_regions_in(
+    area: Rect,
+    show_diff: bool,
+    splits: Splits,
+) -> Option<(Rect, Rect)> {
+    show_diff.then(|| {
+        let (info, _, patch) = diff_column_parts(area, splits);
+        (info, patch)
+    })
+}
+
+/// The changed files column left of the patch.
+pub(crate) fn commit_files_region_in(area: Rect, show_diff: bool, splits: Splits) -> Option<Rect> {
+    show_diff.then(|| diff_column_parts(area, splits).1)
 }
 
 /// The details footer under the commit list.
@@ -161,6 +180,10 @@ impl App {
         commit_diff_regions_in(Self::screen_area()?, self.show_commit_diff, self.splits)
     }
 
+    pub(crate) fn commit_files_region(&self) -> Option<Rect> {
+        commit_files_region_in(Self::screen_area()?, self.show_commit_diff, self.splits)
+    }
+
     pub(crate) fn commit_details_region(&self) -> Option<Rect> {
         Some(commit_details_region_in(Self::screen_area()?, self.splits))
     }
@@ -187,33 +210,6 @@ impl App {
         self.commit_diff_regions()
             .map(|(info_rect, diff_rect)| (pane_page_step(info_rect), pane_page_step(diff_rect)))
             .unwrap_or((1, 1))
-    }
-
-    /// Map a click inside the diff-info pane to the index of the file entry
-    /// under the cursor, if any.
-    pub(crate) fn selected_diff_file_at(
-        &self,
-        info_rect: Rect,
-        column: u16,
-        row: u16,
-    ) -> Option<usize> {
-        if !rect_contains(info_rect, column, row) || row <= info_rect.y {
-            return None;
-        }
-        let files = self.commit_diff_file_cache.get(self.selected_diff_key()?)?;
-        let first_file_line = match self.selected_commit() {
-            Some(commit) => {
-                let message = commit.full_message.as_deref().unwrap_or(&commit.message);
-                // Header block (hash/author/date/stats…) occupies 9 rows
-                // before the message; files start right after it.
-                9 + message.lines().count().max(1)
-            }
-            None => crate::app::features::working_tree::INFO_HEADER_LINES,
-        };
-        let clicked_line = self.commit_diff_info_scroll + usize::from(row - info_rect.y - 1);
-        clicked_line
-            .checked_sub(first_file_line)
-            .filter(|index| *index < files.len())
     }
 
     pub fn context_menu_rect(&self) -> Option<Rect> {
@@ -493,6 +489,7 @@ mod tests {
         list_pct: 40,
         diff_info_pct: 40,
         details_height: 8,
+        files_pct: 30,
     };
 
     #[test]
@@ -524,8 +521,9 @@ mod tests {
     #[test]
     fn diff_regions_stack_inside_diff_column() {
         let (info, patch) = commit_diff_regions_in(AREA, true, SPLITS).unwrap();
-        assert_eq!(info.x, patch.x);
-        assert_eq!(info.bottom(), patch.y);
+        let files = commit_files_region_in(AREA, true, SPLITS).unwrap();
+        assert_eq!(info.x, files.x);
+        assert_eq!((info.bottom(), info.bottom()), (files.y, patch.y));
         assert!(commit_diff_regions_in(AREA, false, SPLITS).is_none());
         // A custom info percentage moves the boundary.
         let custom = Splits {
@@ -534,6 +532,32 @@ mod tests {
         };
         let (big_info, _) = commit_diff_regions_in(AREA, true, custom).unwrap();
         assert!(big_info.height > info.height);
+    }
+
+    #[test]
+    fn files_column_takes_its_width_from_the_diff_column() {
+        let column = SPLITS;
+        let (_, diff) = commit_list_regions_in(AREA, true, SPLITS);
+        assert!(commit_files_region_in(AREA, false, column).is_none());
+        let files = commit_files_region_in(AREA, true, column).unwrap();
+        let (info_with, patch_with) = commit_diff_regions_in(AREA, true, column).unwrap();
+        let (info, patch) = (
+            Rect::new(diff.x, diff.y, diff.width, info_with.height),
+            Rect::new(diff.x, patch_with.y, diff.width, patch_with.height),
+        );
+        assert_eq!(info_with, info, "info pane keeps the full width");
+        assert_eq!(
+            (files.x, files.y, files.height),
+            (patch.x, patch.y, patch.height)
+        );
+        assert_eq!(files.right(), patch_with.x);
+        assert_eq!(files.width + patch_with.width, patch.width);
+        // A dragged border changes the share.
+        let wide = Splits {
+            files_pct: 60,
+            ..column
+        };
+        assert!(commit_files_region_in(AREA, true, wide).unwrap().width > files.width);
     }
 
     #[test]

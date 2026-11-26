@@ -67,11 +67,23 @@ impl StagingState {
         match git::load_status(repo_path) {
             Ok(files) => {
                 let prev = self.list_state.selected();
+                // Staging a file moves it to another group of the list;
+                // the selection goes with the file, not with the row.
+                let was = self.selected_file().cloned();
+                let same_file = was.and_then(|was| {
+                    let at = |same_state: bool| {
+                        files.iter().position(|file| {
+                            file.path == was.path
+                                && (file.stage_state == was.stage_state) == same_state
+                        })
+                    };
+                    at(true).or_else(|| at(false))
+                });
                 self.files = files;
                 let new_sel = if self.files.is_empty() {
                     None
                 } else {
-                    Some(prev.unwrap_or(0).min(self.files.len() - 1))
+                    Some(same_file.unwrap_or(prev.unwrap_or(0).min(self.files.len() - 1)))
                 };
                 self.list_state.select(new_sel);
             }
@@ -473,5 +485,39 @@ impl App {
             editor.insert_mode = true;
             editor.insert_text(text);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Staging a file moves it up into the staged group; the selection
+    /// stays on that file, so Space again unstages it.
+    #[test]
+    fn selection_follows_a_file_into_its_new_group() {
+        let dir = std::env::temp_dir().join(format!("ghh-staging-follow-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git2::Repository::init(&dir).unwrap();
+        for name in ["a.txt", "b.txt", "c.txt"] {
+            std::fs::write(dir.join(name), "x\n").unwrap();
+        }
+        let mut staging = StagingState::new(&dir).unwrap();
+        staging.list_state.select(Some(2));
+        let file = staging.selected_file().cloned().unwrap();
+        assert_eq!(file.path, "c.txt");
+
+        staging.run_git_op(&dir, git::stage_file(&dir, &file));
+        let order: Vec<&str> = staging.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(order, ["c.txt", "a.txt", "b.txt"], "staged group first");
+        let selected = staging.selected_file().cloned().unwrap();
+        assert_eq!(selected.path, "c.txt");
+        assert_eq!(selected.stage_state, git::StageState::Staged);
+
+        staging.run_git_op(&dir, git::unstage_file(&dir, &selected));
+        assert_eq!(staging.selected_file().unwrap().path, "c.txt");
+        assert_eq!(staging.list_state.selected(), Some(2));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

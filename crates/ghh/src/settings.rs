@@ -24,6 +24,8 @@ pub struct Splits {
     pub diff_info_pct: u16,
     /// Details footer height in rows.
     pub details_height: u16,
+    /// Files column width as % of the diff column (the patch gets the rest).
+    pub files_pct: u16,
 }
 
 impl Default for Splits {
@@ -32,6 +34,7 @@ impl Default for Splits {
             list_pct: 40,
             diff_info_pct: 40,
             details_height: 8,
+            files_pct: 30,
         }
     }
 }
@@ -44,6 +47,7 @@ impl Splits {
             list_pct: self.list_pct.clamp(15, 85),
             diff_info_pct: self.diff_info_pct.clamp(15, 85),
             details_height: self.details_height.clamp(3, 20),
+            files_pct: self.files_pct.clamp(15, 85),
         }
     }
 }
@@ -655,6 +659,7 @@ const EXAMPLE_BODY: &str = r#"// Reference for ~/.config/ghh/ghh-settings.json a
         list_pct: 40,        // commit list width, % of screen (15-85)
         diff_info_pct: 40,   // commit info height, % of diff column (15-85)
         details_height: 8,   // details footer height in rows (3-20)
+        files_pct: 30,       // files column width, % of diff column (15-85)
       },
     },
   },
@@ -1221,13 +1226,15 @@ mod tests {
             list_pct: 1,
             diff_info_pct: 99,
             details_height: 0,
+            files_pct: 0,
         };
         assert_eq!(
             wild.clamped(),
             Splits {
                 list_pct: 15,
                 diff_info_pct: 85,
-                details_height: 3
+                details_height: 3,
+                files_pct: 15,
             }
         );
     }

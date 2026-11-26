@@ -1,5 +1,5 @@
 # GIT Handy Helper
-[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Uncommitted changes](#uncommitted-changes-row-0) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
 `ghh` (git handy helper) is a terminal UI for browsing, searching, analyzing and
 rewriting Git history: a commit graph with merged branches you can collapse or drill
@@ -118,6 +118,39 @@ if already pushed).
 
 Related keys: `v` toggles the diff pane, `l` / `L` cycle the list view forward / back.
 
+## Changed files beside the diff
+
+With the diff pane open (`v`) the changed files have their own column left of
+the diff:
+
+```text
+┌ Commit Info ────────────────────────────┐
+│ Hash, Author, Date, Message             │
+├ Files [3] ──────────┬ Diff: abc123 ─────┤
+│>All files           │ @@ -1,4 +1,6 @@   │
+│ M README.md +1 -0   │ +line             │
+│ M …routes.py +4 -2  │ -line             │
+│ A notes.txt +9 -0   │                   │
+└─────────────────────┴───────────────────┘
+```
+
+- `All files` (shown when the commit changed more than one file): the whole
+  diff. The file you are scrolled into is highlighted in the column.
+- Click a file: the diff pane shows the changes of that file only, and its
+  title names the file. Click `All files` to get everything back, at the file
+  you were on.
+- By keyboard: `Tab` to the column (border turns yellow), then `j`/`k`,
+  `p`/`P`, `g`/`G` move the pick. The wheel over the column moves it one row
+  at a time.
+- On row 0 a changed file carries `s` (staged, green) or `u` (unstaged, red)
+  after its status letter, same colours as the staging screen; an untracked
+  file shows a grey `?` instead of a status, as in `git status`.
+- A path too long for the column keeps its end, the file name. Drag the
+  border between the column and the diff to make it wider or narrower; drag
+  the border under Commit Info to change the heights. Both are saved on quit
+  (`splits.files_pct`, `splits.diff_info_pct`, see
+  [settings](docs/SETTINGS.md)).
+
 ## Uncommitted changes (row 0)
 
 When the working tree is not clean, the commit list starts with one extra row,
@@ -132,8 +165,8 @@ numbered 0, above the newest commit:
   untracked. More files than fit: `Tab` to the Details pane (its border turns
   yellow), then `j`/`k`, `p`/`P` or PgDn/PgUp, `g`/`G` scroll it; the mouse
   wheel over the pane scrolls it too. `Tab` or `Esc` goes back to the list.
-- `v` (diff pane): the file list on top (click a file to jump to it), their
-  changes below — staged first, then unstaged, then untracked files as
+- `v` (diff pane): the files in the Files column (click one to see only its
+  changes), their changes beside it — staged first, then unstaged, then untracked files as
   additions. An untracked file over 1 MB or a binary one is named, not shown.
 - `Enter` on the row opens staging, same as `s`.
 - It is not a commit: edit, squash, move, `m` and `M` do nothing on it, and

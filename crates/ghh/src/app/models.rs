@@ -194,6 +194,8 @@ impl EditField {
 pub enum CommitListFocus {
     List,
     DiffInfo,
+    /// Changed files column left of the patch.
+    Files,
     Diff,
     /// Bottom Details pane; only for the "Uncommitted changes" row, whose
     /// file list can be longer than the pane.
@@ -266,6 +268,8 @@ pub enum ResizeTarget {
     ListDiff,
     /// Horizontal border between the commit-info and patch panes.
     InfoPatch,
+    /// Vertical border between the Files column and the patch pane.
+    FilesPatch,
     /// Top border of the details footer.
     DetailsTop,
 }

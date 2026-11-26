@@ -13,10 +13,6 @@ use std::thread;
 /// commit. Not a valid hash, so it cannot clash with one.
 pub(crate) const WORKING_TREE_KEY: &str = "working-tree";
 
-/// Lines the info pane prints before the file list for this row; the
-/// click-to-jump hit test needs the same number.
-pub(crate) const INFO_HEADER_LINES: usize = 5;
-
 #[derive(Default)]
 pub struct WorkingTreeState {
     /// Empty = clean working tree, no row.
@@ -97,13 +93,6 @@ impl App {
     pub(crate) fn set_working_tree(&mut self, files: Vec<git::FileStatus>) {
         let was_selected = self.working_tree_selected();
         let had_row = self.working_tree_row_shown();
-        let mut files = files;
-        // Same order as the patch: staged, unstaged, untracked.
-        files.sort_by_key(|f| match f.stage_state {
-            StageState::Staged => 0,
-            StageState::Unstaged => 1,
-            StageState::Untracked => 2,
-        });
         self.working_tree.files = files;
         self.working_tree.details_scroll = 0;
         self.commit_diff_cache.remove(WORKING_TREE_KEY);

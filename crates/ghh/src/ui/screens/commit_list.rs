@@ -5,7 +5,7 @@ use crate::git;
 use crate::ui::helpers::truncate;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
@@ -380,18 +380,17 @@ fn render_commit_list_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
 fn render_diff_panels(
     frame: &mut Frame,
     app: &mut App,
-    rect: Rect,
+    area: Rect,
     selected: Option<&crate::git::CommitInfo>,
     stats: Option<&crate::git::CommitStats>,
 ) {
-    if app.show_commit_diff {
-        let diff_sections = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(app.splits.diff_info_pct),
-                Constraint::Percentage(100 - app.splits.diff_info_pct),
-            ])
-            .split(rect);
+    // Geometry comes from app::layout so mouse hit-testing always agrees.
+    if let Some((info_rect, patch_rect)) =
+        crate::app::layout::commit_diff_regions_in(area, app.show_commit_diff, app.splits)
+    {
+        let diff_sections = [info_rect, patch_rect];
+        let files_rect =
+            crate::app::layout::commit_files_region_in(area, app.show_commit_diff, app.splits);
         // Borrow the cached diff rather than cloning it: these vectors can hold
         // tens of thousands of lines and this runs on every frame.
         // The working tree row has no commit; its patch sits in the same
@@ -402,10 +401,16 @@ fn render_diff_panels(
             Some(_) => vec!["Loading commit data...".to_string()],
             None => vec!["No commit selected".to_string()],
         };
+        // One file picked in the Files column: only its part of the diff.
+        let only_file = app.diff_file_only();
+        let scrolled_into = app.scrolled_into_diff_file();
+        let files_row = app.files_row();
+        let shown = app.shown_diff_range();
         let diff_lines: &[String] = diff_key
             .as_ref()
             .and_then(|key| app.commit_diff_cache.get(key))
-            .map(Vec::as_slice)
+            .zip(shown)
+            .map(|(lines, range)| &lines[range])
             .unwrap_or(&placeholder);
         let no_files = Vec::new();
         let diff_files = diff_key
@@ -419,7 +424,7 @@ fn render_diff_panels(
         let info_lines = if on_working_tree {
             working_tree_info_lines(&app.working_tree, diff_files)
         } else {
-            render_commit_info_lines(selected, stats, diff_files, info_terms)
+            render_commit_info_lines(selected, stats, info_terms)
         };
         // Every key and wheel step only adds to the scroll positions; the
         // end of each pane is known here, so this is where they stop: last
@@ -436,9 +441,15 @@ fn render_diff_panels(
             .as_ref()
             .is_some_and(|key| app.commit_diff_cache.contains_key(key))
         {
-            app.commit_diff_scroll = app
-                .commit_diff_scroll
-                .min(last_scroll(diff_lines.len(), diff_sections[1]));
+            let mut last = last_scroll(diff_lines.len(), diff_sections[1]);
+            // Files column on "All files": the file whose lines are at the
+            // top is the one highlighted, so the last file must be able to
+            // get there, with empty rows under it when it is short.
+            if files_rect.is_some() && only_file.is_none() && diff_files.len() > 1 {
+                let last_file = diff_files.last().map_or(0, |file| file.diff_line);
+                last = last.max(last_file.min(diff_lines.len().saturating_sub(1)));
+            }
+            app.commit_diff_scroll = app.commit_diff_scroll.min(last);
         }
         let info_meta = scroll_label(
             app.commit_diff_info_scroll,
@@ -467,16 +478,15 @@ fn render_diff_panels(
         frame.render_widget(Clear, diff_sections[0]);
         frame.render_widget(info_para, diff_sections[0]);
 
-        let diff_title = selected
-            .as_ref()
-            .map(|c| format!(" Diff: {} ", c.short_hash()))
-            .unwrap_or_else(|| {
-                if on_working_tree {
-                    " Diff: uncommitted changes ".to_string()
-                } else {
-                    " Diff ".to_string()
-                }
-            });
+        let diff_title = match (selected.as_ref(), on_working_tree) {
+            (Some(commit), _) => format!(" Diff: {} ", commit.short_hash()),
+            (None, true) => " Diff: uncommitted changes ".to_string(),
+            (None, false) => " Diff ".to_string(),
+        };
+        let diff_title = match only_file.and_then(|index| diff_files.get(index)) {
+            Some(file) => format!("{diff_title}\u{b7} {} ", keep_path_end(&file.path, 30)),
+            None => diff_title,
+        };
         let diff_meta = scroll_label(
             app.commit_diff_scroll,
             diff_lines.len(),
@@ -499,13 +509,111 @@ fn render_diff_panels(
         );
         frame.render_widget(Clear, diff_sections[1]);
         frame.render_widget(diff_para, diff_sections[1]);
+        if let Some(files_rect) = files_rect {
+            // Room for the path: borders, cursor column, then the row's
+            // own status and counts.
+            let inner = usize::from(files_rect.width.saturating_sub(3));
+            let all_files = (diff_files.len() > 1).then(|| ListItem::new("All files"));
+            let items: Vec<ListItem> = all_files
+                .into_iter()
+                .chain(diff_files.iter().enumerate().map(|(index, file)| {
+                    let counts = format!("+{} -{}", file.additions, file.deletions);
+                    // Row 0: s(taged) or u(nstaged) after the status, both
+                    // coloured by that state as in the staging view. An
+                    // untracked file is "?", as in `git status` and the
+                    // Details pane; its patch says "new file", but nothing
+                    // was added to git yet, so not "A".
+                    let (status, status_color, section) = if on_working_tree {
+                        match app.working_tree.section_of(file.diff_line) {
+                            "untracked" => ('?', Color::DarkGray, "  "),
+                            "unstaged" => (file.status, Color::Red, "u "),
+                            _ => (file.status, Color::Green, "s "),
+                        }
+                    } else {
+                        (file.status, file_status_color(file.status), "")
+                    };
+                    let room = inner.saturating_sub(counts.len() + section.len() + 3);
+                    // All files shown: the one the patch is scrolled into.
+                    let path_style = if scrolled_into == Some(index) && diff_files.len() > 1 {
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    let path = format!("{} ", keep_path_end(&file.path, room));
+                    // Search hits in the path, as in the other panes.
+                    let path_spans = match info_terms {
+                        Some(terms) => crate::ui::helpers::highlight_spans(
+                            &path,
+                            path_style,
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                            &crate::app::features::search::match_ranges(&path, &terms.for_file()),
+                        ),
+                        None => vec![Span::styled(path, path_style)],
+                    };
+                    let mut spans = vec![
+                        Span::styled(
+                            format!("{status} "),
+                            Style::default()
+                                .fg(status_color)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(section, Style::default().fg(status_color)),
+                    ];
+                    spans.extend(path_spans);
+                    spans.extend([
+                        Span::styled(
+                            format!("+{}", file.additions),
+                            Style::default().fg(Color::Green),
+                        ),
+                        Span::styled(
+                            format!(" -{}", file.deletions),
+                            Style::default().fg(Color::Red),
+                        ),
+                    ]);
+                    ListItem::new(Line::from(spans))
+                }))
+                .collect();
+            let focused = app.commit_list_focus == CommitListFocus::Files;
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .title(format!(" Files [{}] ", diff_files.len()))
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(if focused {
+                            Color::Yellow
+                        } else {
+                            Color::DarkGray
+                        })),
+                )
+                .highlight_symbol(">")
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+            app.diff_files_state
+                .select((!diff_files.is_empty()).then_some(files_row));
+            frame.render_widget(Clear, files_rect);
+            frame.render_stateful_widget(list, files_rect, &mut app.diff_files_state);
+        }
     }
+}
+
+/// A path cut to `room` characters from the left: the file name is the part
+/// worth keeping in a narrow column.
+fn keep_path_end(path: &str, room: usize) -> String {
+    let length = path.chars().count();
+    if length <= room {
+        return path.to_string();
+    }
+    let kept: String = path.chars().skip(length - room.saturating_sub(1)).collect();
+    format!("\u{2026}{kept}")
 }
 
 pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active: bool) {
     // Geometry comes from app::layout so mouse hit-testing always agrees.
     let chunks = crate::app::layout::main_chunks(area, app.splits.details_height);
-    let (list_rect, diff_rect) =
+    let (list_rect, _) =
         crate::app::layout::commit_list_regions_in(area, app.show_commit_diff, app.splits);
 
     if app.move_state.is_some() {
@@ -527,7 +635,7 @@ pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active
         .as_ref()
         .and_then(|c| app.stats_cache.get(&c.hash))
         .cloned();
-    render_diff_panels(frame, app, diff_rect, selected.as_ref(), stats.as_ref());
+    render_diff_panels(frame, app, area, selected.as_ref(), stats.as_ref());
 
     if app.working_tree_selected() {
         crate::ui::screens::details::render_working_tree_details(
@@ -561,8 +669,8 @@ pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active
     render_status(frame, app, chunks[3]);
 }
 
-/// Info pane for the "Uncommitted changes" row. The file list starts at
-/// line `INFO_HEADER_LINES`: the click-to-jump hit test counts on it.
+/// Info pane for the "Uncommitted changes" row; the Files column lists the
+/// files.
 fn working_tree_info_lines(
     working_tree: &crate::app::features::working_tree::WorkingTreeState,
     files: &[crate::app::CommitDiffFile],
@@ -571,7 +679,7 @@ fn working_tree_info_lines(
     let (staged, unstaged, untracked) = working_tree.counts();
     let additions: usize = files.iter().map(|f| f.additions).sum();
     let deletions: usize = files.iter().map(|f| f.deletions).sum();
-    let mut lines = vec![
+    vec![
         Line::from(Span::styled(
             "Uncommitted changes (not a commit yet)",
             Style::default()
@@ -590,44 +698,12 @@ fn working_tree_info_lines(
             Span::raw(" "),
             Span::styled(format!("-{deletions}"), Style::default().fg(Color::Red)),
         ]),
-        Line::from(""),
-        Line::from(label("Files (click to jump):")),
-    ];
-    debug_assert_eq!(
-        lines.len(),
-        crate::app::features::working_tree::INFO_HEADER_LINES
-    );
-    lines.extend(files.iter().map(|file| {
-        Line::from(vec![
-            Span::styled(
-                format!("{} ", file.status),
-                Style::default()
-                    .fg(file_status_color(file.status))
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("+{}", file.additions),
-                Style::default().fg(Color::Green),
-            ),
-            Span::raw(" "),
-            Span::styled(
-                format!("-{}", file.deletions),
-                Style::default().fg(Color::Red),
-            ),
-            Span::styled(
-                format!("  {:<9} ", working_tree.section_of(file.diff_line)),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::raw(file.path.clone()),
-        ])
-    }));
-    lines
+    ]
 }
 
 fn render_commit_info_lines(
     commit: Option<&crate::git::CommitInfo>,
     stats: Option<&crate::git::CommitStats>,
-    files: &[crate::app::CommitDiffFile],
     search_terms: Option<&crate::app::features::search::ExecutedTerms>,
 ) -> Vec<Line<'static>> {
     use crate::app::features::search::match_ranges;
@@ -728,41 +804,6 @@ fn render_commit_info_lines(
             .into_iter()
             .map(|line| Line::from(marked(line, &terms.for_message()))),
     );
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "Files (click to jump):",
-        Style::default().fg(Color::Yellow),
-    )));
-    lines.extend(files.iter().map(|file| {
-        Line::from(
-            vec![
-                Span::styled(
-                    format!("{} ", file.status),
-                    Style::default()
-                        .fg(file_status_color(file.status))
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("+{}", file.additions),
-                    Style::default().fg(Color::Green),
-                ),
-                Span::raw(" "),
-                Span::styled(
-                    format!("-{}", file.deletions),
-                    Style::default().fg(Color::Red),
-                ),
-                Span::raw("  "),
-            ]
-            .into_iter()
-            .chain(marked(&file.path, &terms.for_file()))
-            .collect::<Vec<_>>(),
-        )
-    }));
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "--------------------------------",
-        Style::default().fg(Color::DarkGray),
-    )));
     lines
 }
 

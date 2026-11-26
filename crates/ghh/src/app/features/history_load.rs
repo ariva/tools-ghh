@@ -661,6 +661,70 @@ mod tests {
         assert_eq!(app.row_number(0), 1);
     }
 
+    /// Row 0 in the Files column: an untracked file is "?", not the "A"
+    /// its made-up "new file" patch would give; a staged new file is "A".
+    #[test]
+    fn files_column_marks_untracked_with_a_question_mark() {
+        use crate::app::features::working_tree::WORKING_TREE_KEY;
+        use crate::app::models::CommitDiffFile;
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut app = test_app_with(merge_chain(), "worktree-untracked-mark");
+        app.set_working_tree(dirty_files());
+        app.list_state.select(Some(0));
+        app.show_commit_diff = true;
+        let file = |path: &str, diff_line| CommitDiffFile {
+            path: path.to_string(),
+            diff_line,
+            additions: 1,
+            deletions: 0,
+            status: 'A',
+        };
+        app.commit_diff_file_cache.insert(
+            WORKING_TREE_KEY.to_string(),
+            vec![
+                file("staged.txt", 1),
+                file("edited.txt", 6),
+                file("notes.txt", 11),
+            ],
+        );
+        app.commit_diff_cache.insert(
+            WORKING_TREE_KEY.to_string(),
+            (0..20).map(|i| format!("+line {i}")).collect(),
+        );
+        app.working_tree.unstaged_from = 5;
+        app.working_tree.untracked_from = 10;
+
+        let mut terminal = Terminal::new(TestBackend::new(140, 45)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &mut app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let screen: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+        assert!(
+            screen.contains("A s staged.txt"),
+            "staged new file is added"
+        );
+        assert!(screen.contains("?   notes.txt"));
+        // Status and state mark take the colour of the state, as in the
+        // staging view: staged green, unstaged red.
+        let color_before = |text: &str| {
+            // Byte offset in `screen` back to the cell it came from.
+            let mut offset = screen.find(text).unwrap();
+            let cell = buffer.content().iter().find(|cell| {
+                let here = offset == 0;
+                offset = offset.saturating_sub(cell.symbol().len());
+                here
+            });
+            cell.unwrap().fg
+        };
+        use ratatui::style::Color;
+        assert_eq!(color_before("A s staged.txt"), Color::Green);
+        assert_eq!(color_before("s staged.txt"), Color::Green);
+        assert_eq!(color_before("A u edited.txt"), Color::Red);
+        assert_eq!(color_before("u edited.txt"), Color::Red);
+        assert!(!screen.contains("A   notes.txt") && !screen.contains("A ? notes.txt"));
+    }
+
     /// The row is not a commit: commit actions do nothing on it, and a
     /// drill view (commits of one merge) does not show it.
     #[test]
@@ -778,6 +842,93 @@ mod tests {
         // The wheel handlers measure bursts from what this frame showed.
         assert_eq!(app.drawn_scroll.diff, app.commit_diff_scroll);
         assert_eq!(app.drawn_scroll.info, app.commit_diff_info_scroll);
+    }
+
+    /// The changed files sit in a column beside the patch; picking a file
+    /// there narrows the patch pane to it.
+    #[test]
+    fn files_column_lists_files_and_moves_the_patch() {
+        use crate::app::models::{CommitDiffFile, CommitListFocus};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut app = test_app_with(merge_chain(), "files-column");
+        app.show_commit_diff = true;
+        app.select_commit_idx(0);
+        let hash = app.commits[0].hash.clone();
+        let file = |path: &str, diff_line| CommitDiffFile {
+            path: path.to_string(),
+            diff_line,
+            additions: 1,
+            deletions: 0,
+            status: 'M',
+        };
+        // Three files; the last one starts inside the final page.
+        let files = vec![
+            file("src/one.rs", 0),
+            file("src/two.rs", 100),
+            file("src/three.rs", 195),
+        ];
+        app.commit_diff_file_cache.insert(hash.clone(), files);
+        app.commit_diff_cache
+            .insert(hash, (0..200).map(|i| format!("+line {i}")).collect());
+        let mut terminal = Terminal::new(TestBackend::new(140, 45)).unwrap();
+        let mut draw = |app: &mut App| -> String {
+            terminal
+                .draw(|frame| crate::ui::render(frame, app))
+                .unwrap();
+            let buffer = terminal.backend().buffer();
+            buffer.content().iter().map(|cell| cell.symbol()).collect()
+        };
+        let press = |app: &mut App, code| {
+            app.handle_normal(KeyEvent::new(code, KeyModifiers::NONE));
+        };
+
+        let column = draw(&mut app);
+        assert!(column.contains(" Files [3] ") && column.contains(">All files"));
+        assert!(column.contains("M src/one.rs"));
+        assert!(!column.contains("Files (click to jump)"), "no copy in info");
+        assert!(column.contains("+line 0") && !column.contains("\u{b7} src/"));
+
+        // Tab order: list, info, files, patch.
+        press(&mut app, KeyCode::Tab);
+        press(&mut app, KeyCode::Tab);
+        assert_eq!(app.commit_list_focus, CommitListFocus::Files);
+
+        // A file picked: the patch pane holds its changes and nothing else.
+        press(&mut app, KeyCode::Char('j'));
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!((app.diff_file_only(), app.commit_diff_scroll), (Some(1), 0));
+        app.commit_diff_scroll = 5_000;
+        let two = draw(&mut app);
+        assert!(two.contains(">M src/two.rs") && two.contains("\u{b7} src/two.rs"));
+        assert!(two.contains("+line 194") && !two.contains("+line 195"));
+        assert!(!two.contains("+line 99 "), "file one's lines are not shown");
+        assert_eq!(app.shown_diff_range(), Some(100..195));
+        // What a copy from the pane takes.
+        assert_eq!(app.shown_diff_lines().map(<[String]>::len), Some(95));
+
+        // Back on "All files": everything again, at the file just left, and
+        // the file the patch is scrolled into is told from the scroll.
+        press(&mut app, KeyCode::Char('g'));
+        assert_eq!((app.diff_file_only(), app.commit_diff_scroll), (None, 100));
+        assert_eq!(app.scrolled_into_diff_file(), Some(1));
+        app.commit_diff_scroll = 20;
+        assert_eq!(app.scrolled_into_diff_file(), Some(0));
+        assert!(draw(&mut app).contains(">All files"));
+
+        // Scrolled to the end, the short last file is at the top of the
+        // pane and so it is the one highlighted, not the file before it.
+        app.commit_diff_scroll = 5_000;
+        draw(&mut app);
+        assert_eq!(app.commit_diff_scroll, 195);
+        assert_eq!(app.scrolled_into_diff_file(), Some(2));
+
+        // A pick does not carry over to another commit.
+        press(&mut app, KeyCode::Char('G'));
+        assert_eq!(app.diff_file_only(), Some(2));
+        app.select_commit_idx(1);
+        assert_eq!(app.diff_file_only(), None);
+        app.select_commit_idx(0);
     }
 
     /// M pressed again inside the view it opened: same merge, so no second

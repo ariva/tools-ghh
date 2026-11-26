@@ -331,9 +331,10 @@ impl App {
             MouseEventKind::Up(MouseButton::Left) if self.resize_drag.is_some() => {
                 self.resize_drag = None;
                 tracing::info!(
-                    "panes resized: list {}%, info {}%, details {} rows",
+                    "panes resized: list {}%, info {}%, files {}%, details {} rows",
                     self.splits.list_pct,
                     self.splits.diff_info_pct,
+                    self.splits.files_pct,
                     self.splits.details_height
                 );
                 Some(false)
@@ -354,12 +355,21 @@ impl App {
                     {
                         return Some(ResizeTarget::ListDiff);
                     }
+                    // The info pane's bottom edge runs over the Files column
+                    // and the patch pane alike.
                     if let Some((_, patch_rect)) = self.commit_diff_regions()
-                        && column >= patch_rect.x
-                        && column < patch_rect.right()
+                        && column >= diff_rect.x
+                        && column < diff_rect.right()
                         && (row == patch_rect.y || row + 1 == patch_rect.y)
                     {
                         return Some(ResizeTarget::InfoPatch);
+                    }
+                    if let Some(files_rect) = self.commit_files_region()
+                        && row > files_rect.y
+                        && row < files_rect.bottom()
+                        && (column == files_rect.right() || column + 1 == files_rect.right())
+                    {
+                        return Some(ResizeTarget::FilesPatch);
                     }
                 }
                 let details = self.commit_details_region()?;
@@ -395,6 +405,15 @@ impl App {
                 {
                     self.splits.diff_info_pct = (u32::from(row.saturating_sub(list_rect.y)) * 100
                         / u32::from(list_rect.height))
+                        as u16;
+                }
+            }
+            ResizeTarget::FilesPatch => {
+                if let Some((_, diff_rect)) = self.commit_list_regions()
+                    && diff_rect.width > 0
+                {
+                    self.splits.files_pct = (u32::from(column.saturating_sub(diff_rect.x)) * 100
+                        / u32::from(diff_rect.width))
                         as u16;
                 }
             }
@@ -698,6 +717,26 @@ impl App {
                 }
                 return;
             }
+            let files_rect = self.commit_files_region();
+            let over_files =
+                files_rect.is_some_and(|rect| Self::rect_contains(rect, mouse.column, mouse.row));
+            if let Some(rect) = files_rect
+                && over_files
+            {
+                if click {
+                    self.commit_list_focus = CommitListFocus::Files;
+                    // Inside the border: first file row is rect.y + 1.
+                    if let Some(r) = mouse.row.checked_sub(rect.y + 1)
+                        && mouse.row + 1 < rect.bottom()
+                    {
+                        self.select_files_row(self.diff_files_state.offset() + usize::from(r));
+                    }
+                } else if up || down {
+                    // Like the commit list: the wheel moves the pick.
+                    self.move_files_row(if up { -1 } else { 1 });
+                }
+                return;
+            }
             if click && self.show_commit_diff {
                 if Self::rect_contains(list_rect, mouse.column, mouse.row) {
                     self.commit_list_focus = CommitListFocus::List;
@@ -709,19 +748,6 @@ impl App {
                 } else if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
                     self.commit_list_focus = CommitListFocus::Diff;
                 }
-            }
-            if left_click
-                && let Some((info_rect, _)) = diff_sections
-                && let Some(file_index) =
-                    self.selected_diff_file_at(info_rect, mouse.column, mouse.row)
-                && let Some(file) = self
-                    .selected_diff_key()
-                    .and_then(|key| self.commit_diff_file_cache.get(key))
-                    .and_then(|files| files.get(file_index))
-            {
-                self.commit_diff_scroll = file.diff_line;
-                self.commit_list_focus = CommitListFocus::Diff;
-                return;
             }
             if click && let Some(visible_idx) = self.commit_list_row_at(mouse.column, mouse.row) {
                 self.list_state.select(Some(visible_idx));

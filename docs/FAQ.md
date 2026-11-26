@@ -21,6 +21,7 @@ inside the tool: `h` or `?` opens help for the screen you are on. The
 | 1.10 | How do I list commits strictly by date? | `o` switches between topological order and date order | |
 | 1.11 | How do I resize the panes? | drag a border with the mouse; the layout is saved on quit | [settings](SETTINGS.md) |
 | 1.12 | How do I copy a hash or a message? | `.` or right-click opens the pane's menu | |
+| 1.13 | How do I see the changes of one file of a commit only? | `v`, then click the file in the Files column left of the diff (or `Tab` to the column, `j`/`k`). `All files` on top shows everything again | [README](../README.md#changed-files-beside-the-diff) |
 
 ## 2. Finding commits
 
@@ -59,6 +60,7 @@ force-push afterwards. Each asks before doing anything.
 | 4.1 | How do I commit my changes? | `s`, `Space` on each file (or `a` for all), `c`, type the message, `Enter` | |
 | 4.8 | What is row 0, "Uncommitted changes", on top of the list? | everything not committed yet: staged, unstaged and untracked files. Select it to see the files in Details, `Tab` to Details scrolls a long file list, `v` shows their changes, `Enter` opens staging. No such row when the working tree is clean | [README](../README.md#uncommitted-changes-row-0) |
 | 4.2 | How do I unstage a file? | `Space` on it again; `u` unstages everything | |
+| 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group and stays selected | |
 | 4.3 | How do I write a longer commit message? | `Alt+Enter` in the message field opens the multi-line editor | |
 | 4.4 | Can I stage part of a file? | no, whole files only | [not built](ARCHITECTURE.md#not-built) |
 | 4.5 | How do I look at my stashes? | `S` | [README](../README.md#browse-stashes-s) |

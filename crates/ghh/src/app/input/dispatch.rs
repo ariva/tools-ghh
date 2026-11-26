@@ -151,6 +151,12 @@ impl App {
         if self.commit_list_focus == CommitListFocus::Details && !self.working_tree_selected() {
             self.commit_list_focus = CommitListFocus::List;
         }
+        if self.commit_list_focus == CommitListFocus::Files && !self.show_commit_diff {
+            self.commit_list_focus = CommitListFocus::List;
+        }
+        let files_page = self
+            .commit_files_region()
+            .map_or(1, crate::app::layout::pane_page_step) as isize;
         let panes_to_cycle = self.show_commit_diff || self.working_tree_selected();
         let details_page = self
             .commit_details_region()
@@ -199,6 +205,7 @@ impl App {
                         );
                     }
                 }
+                CommitListFocus::Files => self.move_files_row(1),
                 CommitListFocus::Details => self.scroll_working_tree_details(1),
             },
             KeyCode::Up | KeyCode::Char('k') => match self.commit_list_focus {
@@ -233,6 +240,7 @@ impl App {
                         );
                     }
                 }
+                CommitListFocus::Files => self.move_files_row(-1),
                 CommitListFocus::Details => self.scroll_working_tree_details(-1),
             },
             KeyCode::Char('g') | KeyCode::Home => match self.commit_list_focus {
@@ -251,11 +259,15 @@ impl App {
                     self.mark_perf_action("commit_list.action.diff_scroll_top");
                     self.commit_diff_scroll = 0
                 }
+                CommitListFocus::Files => self.move_files_row(isize::MIN),
                 CommitListFocus::Details => self.working_tree.details_scroll = 0,
             },
             KeyCode::Char('G') | KeyCode::End => {
                 if self.commit_list_focus == CommitListFocus::Details {
                     self.scroll_working_tree_details(isize::MAX);
+                }
+                if self.commit_list_focus == CommitListFocus::Files {
+                    self.move_files_row(isize::MAX);
                 }
                 if self.commit_list_focus == CommitListFocus::List {
                     if self.full_history_required("jumping to bottom") {
@@ -342,6 +354,7 @@ impl App {
                 }
                 CommitListFocus::DiffInfo => {}
                 CommitListFocus::Diff => {}
+                CommitListFocus::Files => self.move_files_row(files_page),
                 CommitListFocus::Details => self.scroll_working_tree_details(details_page),
             },
             KeyCode::PageUp | KeyCode::Char('P') => match self.commit_list_focus {
@@ -381,6 +394,7 @@ impl App {
                 }
                 CommitListFocus::DiffInfo => {}
                 CommitListFocus::Diff => {}
+                CommitListFocus::Files => self.move_files_row(-files_page),
                 CommitListFocus::Details => self.scroll_working_tree_details(-details_page),
             },
             KeyCode::Char('e') => {

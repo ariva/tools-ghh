@@ -3,6 +3,9 @@ use crate::git::models::{FileStatus, StageState};
 use git2::Repository;
 use std::path::Path;
 
+/// Uncommitted files, grouped staged, unstaged, untracked (the order
+/// `git status` prints), by path inside a group. Every list of them in the
+/// app, and the row 0 patch, follows this one order.
 pub fn load_status(repo_path: &Path) -> Result<Vec<FileStatus>> {
     let repo = Repository::discover(repo_path)?;
     let mut opts = git2::StatusOptions::new();
@@ -65,6 +68,12 @@ pub fn load_status(repo_path: &Path) -> Result<Vec<FileStatus>> {
         }
     }
 
+    // Stable: libgit2 hands the entries over by path already.
+    files.sort_by_key(|file| match file.stage_state {
+        StageState::Staged => 0,
+        StageState::Unstaged => 1,
+        StageState::Untracked => 2,
+    });
     Ok(files)
 }
 
@@ -336,7 +345,9 @@ mod tests {
         std::fs::write(dir.join("new.txt"), "fresh\n").unwrap();
 
         let files = load_status(&dir).unwrap();
-        assert_eq!(files.len(), 3);
+        // Grouped by state, not by path: "new.txt" sorts first by name.
+        let order: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(order, ["staged.txt", "unstaged.txt", "new.txt"]);
         let patch = working_tree_patch(&dir, &files).unwrap();
         let header = |name: &str| {
             patch

@@ -110,6 +110,7 @@ Every field is optional — files only state what they override.
 | `splits.list_pct` | 15–85 | Commit list width, % of screen (rest = diff column; shared with staging) |
 | `splits.diff_info_pct` | 15–85 | Commit-info height, % of diff column (rest = patch) |
 | `splits.details_height` | 3–20 | Details footer height in rows |
+| `splits.files_pct` | 15–85 | Width of the Files column, % of diff column (rest = patch). Default 30 |
 | `logs` | path string or object | Trace log file. String form = path. Object form: `{ path, enabled, log_level, log_events }` — all optional. `path` default `/tmp/ghh/logs.txt` (`"off"`/`""` disables); tokens: `{REPO}` repo dir name, `{HASH}` stable 8-hex repo-path hash, and date tokens `YYYY` `MM` (month) `DD` `HH` `mm` (minutes) `SS` — e.g. `"/tmp/ghh/{REPO}-{HASH}-{YYYY-MM-DD}.log"`. `enabled` default `true`; `log_level` (optional, default `INFO`) = minimum level written, capped by `debug`'s level; `log_events` default `true` writes app events (key presses, screen changes, actions) into the file regardless of level. CLI `--logs` overrides the path and forces logging on. A fresh file starts on every run. |
 | `short_name` | string | Informational: last segment of the origin URL |
 | `path` | string | Informational: canonical repo path |

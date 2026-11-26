@@ -64,7 +64,9 @@ impl App {
                     "v          toggle diff pane".into(),
                 ];
                 if self.show_commit_diff {
-                    lines.push("Tab        switch focus list/diff".into());
+                    lines.push("Tab        switch focus list/info/files/diff".into());
+                    lines.push("           in Files: j/k p/P g/G pick a file (only its".into());
+                    lines.push("           changes) or All files; a click does the same".into());
                     lines.push("PgUp/PgDn  page list or scroll diff (also P / p)".into());
                     lines.push("Esc        hide diff".into());
                 }
@@ -96,6 +98,7 @@ impl App {
                 "Tab        cycle file list / diff / message".into(),
                 "j/k, ↑/↓   navigate file list or scroll diff".into(),
                 "Space      stage / unstage selected file".into(),
+                "           list order: staged, unstaged, untracked".into(),
                 "a / u      stage all / unstage all".into(),
                 "c          focus commit message".into(),
                 "Enter      commit with current message".into(),

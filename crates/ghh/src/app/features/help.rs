@@ -97,6 +97,8 @@ impl App {
             Mode::Staging => vec![
                 "Tab        cycle file list / diff / message".into(),
                 "j/k, ↑/↓   navigate file list or scroll diff".into(),
+                "PgUp/PgDn  page file list or diff (also P / p)".into(),
+                "g / G      first / last file, top / end of diff".into(),
                 "Space      stage / unstage selected file".into(),
                 "           list order: staged, unstaged, untracked".into(),
                 "a / u      stage all / unstage all".into(),

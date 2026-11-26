@@ -104,28 +104,18 @@ impl StagingState {
             .any(|f| f.stage_state == git::StageState::Staged)
     }
 
-    /// Move the file selection by one and refresh the diff pane.
-    pub fn select_next(&mut self, repo_path: &std::path::Path) {
-        let len = self.files.len();
-        if len == 0 {
+    /// Move the file selection by `delta` rows, stopping at the first and
+    /// last file, and refresh the diff pane.
+    pub fn select_by(&mut self, repo_path: &std::path::Path, delta: isize) {
+        let Some(last) = self.files.len().checked_sub(1) else {
             return;
+        };
+        let from = self.list_state.selected();
+        let to = from.unwrap_or(0).saturating_add_signed(delta).min(last);
+        if from != Some(to) {
+            self.list_state.select(Some(to));
+            self.refresh_diff(repo_path);
         }
-        let next = match self.list_state.selected() {
-            Some(i) if i + 1 < len => i + 1,
-            Some(i) => i,
-            None => 0,
-        };
-        self.list_state.select(Some(next));
-        self.refresh_diff(repo_path);
-    }
-
-    pub fn select_prev(&mut self, repo_path: &std::path::Path) {
-        let prev = match self.list_state.selected() {
-            Some(0) | None => 0,
-            Some(i) => i - 1,
-        };
-        self.list_state.select(Some(prev));
-        self.refresh_diff(repo_path);
     }
 
     /// Run a stage/unstage-style git op, surface its error, then reload.
@@ -222,6 +212,14 @@ impl App {
 
     pub(crate) fn handle_staging(&mut self, key: KeyEvent) -> bool {
         let repo_path = self.repo_path.clone();
+        // One page = the rows a pane shows; 10 when the size is unknown.
+        let (files_page, diff_page) =
+            self.staging_regions().map_or((10, 10), |(files, diff, _)| {
+                (
+                    crate::app::layout::pane_page_step(files) as isize,
+                    crate::app::layout::pane_page_step(diff),
+                )
+            });
         let Some(staging) = self.staging.as_mut() else {
             self.nav.reset(Mode::Normal);
             return false;
@@ -252,8 +250,13 @@ impl App {
                     self.nav.pop();
                     self.refresh_working_tree();
                 }
-                KeyCode::Down | KeyCode::Char('j') => staging.select_next(&repo_path),
-                KeyCode::Up | KeyCode::Char('k') => staging.select_prev(&repo_path),
+                KeyCode::Down | KeyCode::Char('j') => staging.select_by(&repo_path, 1),
+                KeyCode::Up | KeyCode::Char('k') => staging.select_by(&repo_path, -1),
+                // p / P page like PgDn / PgUp, as in the commit list.
+                KeyCode::PageDown | KeyCode::Char('p') => staging.select_by(&repo_path, files_page),
+                KeyCode::PageUp | KeyCode::Char('P') => staging.select_by(&repo_path, -files_page),
+                KeyCode::Home | KeyCode::Char('g') => staging.select_by(&repo_path, isize::MIN),
+                KeyCode::End | KeyCode::Char('G') => staging.select_by(&repo_path, isize::MAX),
                 KeyCode::Char(' ') => {
                     if let Some(file) = staging.selected_file().cloned() {
                         let result = if file.stage_state == git::StageState::Staged {
@@ -292,12 +295,21 @@ impl App {
                 KeyCode::Esc => staging.focus = StagingFocus::FileList,
                 KeyCode::Tab => staging.focus = StagingFocus::CommitMessage,
                 KeyCode::BackTab => staging.focus = StagingFocus::FileList,
-                KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown | KeyCode::Char('p') => {
-                    staging.diff_scroll = staging.diff_scroll.saturating_add(10);
+                // Drawing stops the scroll at the end of the diff.
+                KeyCode::Down | KeyCode::Char('j') => {
+                    staging.diff_scroll = staging.diff_scroll.saturating_add(1);
                 }
-                KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp | KeyCode::Char('P') => {
-                    staging.diff_scroll = staging.diff_scroll.saturating_sub(10);
+                KeyCode::Up | KeyCode::Char('k') => {
+                    staging.diff_scroll = staging.diff_scroll.saturating_sub(1);
                 }
+                KeyCode::PageDown | KeyCode::Char('p') => {
+                    staging.diff_scroll = staging.diff_scroll.saturating_add(diff_page);
+                }
+                KeyCode::PageUp | KeyCode::Char('P') => {
+                    staging.diff_scroll = staging.diff_scroll.saturating_sub(diff_page);
+                }
+                KeyCode::Home | KeyCode::Char('g') => staging.diff_scroll = 0,
+                KeyCode::End | KeyCode::Char('G') => staging.diff_scroll = usize::MAX,
                 _ => {}
             },
             StagingFocus::CommitMessage => match key.code {
@@ -518,6 +530,63 @@ mod tests {
         staging.run_git_op(&dir, git::unstage_file(&dir, &selected));
         assert_eq!(staging.selected_file().unwrap().path, "c.txt");
         assert_eq!(staging.list_state.selected(), Some(2));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// PgDn/PgUp (and p/P, g/G) move the file selection by pages and stop
+    /// at the ends; in the diff pane they scroll, j/k by one line.
+    #[test]
+    fn page_keys_work_in_the_file_list_and_the_diff() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let dir = std::env::temp_dir().join(format!("ghh-staging-pages-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git2::Repository::init(&dir).unwrap();
+        for i in 0..40 {
+            let body: String = (0..300).map(|line| format!("line {line}\n")).collect();
+            std::fs::write(dir.join(format!("f{i:02}.txt")), body).unwrap();
+        }
+        let mut app = App::new(dir.clone(), true);
+        app.initial_history_loader_rx = None;
+        app.staging = Some(StagingState::new(&dir).unwrap());
+        app.nav.push(Mode::Staging);
+        let press = |app: &mut App, code| {
+            app.handle_staging(KeyEvent::new(code, KeyModifiers::NONE));
+        };
+        let row = |app: &App| app.staging.as_ref().unwrap().list_state.selected().unwrap();
+
+        press(&mut app, KeyCode::PageDown);
+        let page = row(&app);
+        assert!(page > 1, "PgDn moves more than one row: {page}");
+        press(&mut app, KeyCode::Char('p'));
+        assert_eq!(row(&app), (page * 2).min(39));
+        press(&mut app, KeyCode::PageUp);
+        press(&mut app, KeyCode::Char('P'));
+        press(&mut app, KeyCode::PageUp);
+        assert_eq!(row(&app), 0, "stops at the first file");
+        press(&mut app, KeyCode::Char('G'));
+        assert_eq!(row(&app), 39);
+        press(&mut app, KeyCode::PageDown);
+        assert_eq!(row(&app), 39, "stops at the last file");
+        press(&mut app, KeyCode::Char('g'));
+        assert_eq!(row(&app), 0);
+
+        // Diff pane: one line per j, a page per PgDn, and the end stop.
+        press(&mut app, KeyCode::Tab);
+        let scroll = |app: &App| app.staging.as_ref().unwrap().diff_scroll;
+        press(&mut app, KeyCode::Char('j'));
+        assert_eq!(scroll(&app), 1);
+        press(&mut app, KeyCode::PageDown);
+        assert!(scroll(&app) > 2);
+        press(&mut app, KeyCode::Char('G'));
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &mut app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let screen: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+        assert!(screen.contains("+line 299") && screen.contains("+line 280"));
+        assert!(scroll(&app) < 300, "stopped at the end: {}", scroll(&app));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

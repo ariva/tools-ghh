@@ -93,11 +93,17 @@ fn render_files_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
 }
 
 /// Diff pane for the selected file, scroll-labelled.
-fn render_staging_diff_panel(frame: &mut Frame, app: &App, rect: Rect) {
-    let staging = match app.staging.as_ref() {
+fn render_staging_diff_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
+    let staging = match app.staging.as_mut() {
         Some(s) => s,
         None => return,
     };
+    // Keys and wheel only add to the scroll; it stops here, with the last
+    // line on the last row.
+    let rows = usize::from(rect.height.saturating_sub(2)).max(1);
+    staging.diff_scroll = staging
+        .diff_scroll
+        .min(staging.diff_lines.len().saturating_sub(rows));
 
     let selected_path = staging
         .selected_file()

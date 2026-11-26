@@ -60,6 +60,7 @@ force-push afterwards. Each asks before doing anything.
 | 4.1 | How do I commit my changes? | `s`, `Space` on each file (or `a` for all), `c`, type the message, `Enter` | |
 | 4.8 | What is row 0, "Uncommitted changes", on top of the list? | everything not committed yet: staged, unstaged and untracked files. Select it to see the files in Details, `Tab` to Details scrolls a long file list, `v` shows their changes, `Enter` opens staging. No such row when the working tree is clean | [README](../README.md#uncommitted-changes-row-0) |
 | 4.2 | How do I unstage a file? | `Space` on it again; `u` unstages everything | |
+| 4.10 | How do I move fast through a long file list or diff in staging? | `PgDn`/`PgUp` (or `p`/`P`) page the pane that has focus, `g`/`G` jump to its start and end; `Tab` switches between file list and diff | |
 | 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group and stays selected | |
 | 4.3 | How do I write a longer commit message? | `Alt+Enter` in the message field opens the multi-line editor | |
 | 4.4 | Can I stage part of a file? | no, whole files only | [not built](ARCHITECTURE.md#not-built) |

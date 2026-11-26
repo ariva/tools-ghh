@@ -5,19 +5,14 @@ use crate::app::models::Mode;
 
 impl App {
     pub fn can_open_help(&self) -> bool {
-        match self.mode() {
+        !matches!(
+            self.mode(),
             Mode::Search
-            | Mode::Edit
-            | Mode::EditCommitMessage
-            | Mode::EditCommitField
-            | Mode::SquashMessage => false,
-            Mode::Staging => self
-                .staging
-                .as_ref()
-                .map(|s| s.focus != crate::app::features::staging::StagingFocus::CommitMessage)
-                .unwrap_or(true),
-            _ => true,
-        }
+                | Mode::Edit
+                | Mode::EditCommitMessage
+                | Mode::EditCommitField
+                | Mode::SquashMessage
+        )
     }
 
     pub fn help_title(&self) -> &'static str {
@@ -95,20 +90,18 @@ impl App {
                 lines
             }
             Mode::Staging => vec![
-                "Tab        cycle file list / diff / message".into(),
+                "Tab        switch file list / diff".into(),
                 "j/k, ↑/↓   navigate file list or scroll diff".into(),
                 "PgUp/PgDn  page file list or diff (also P / p)".into(),
                 "g / G      first / last file, top / end of diff".into(),
-                "Space      stage / unstage selected file".into(),
+                "Space      stage / unstage selected file, move to the next".into(),
                 "           list order: staged, unstaged, untracked".into(),
                 "a / u      stage all / unstage all".into(),
-                "c          focus commit message".into(),
-                "Enter      commit with current message".into(),
-                "Alt+Enter  open vim-like message editor".into(),
-                "Tab        select Save / Cancel".into(),
-                "Ctrl+V     paste message text".into(),
+                "Enter      write the message and commit (needs staged files)".into(),
+                "           in the editor: Tab selects Save / Cancel, Ctrl+V pastes".into(),
                 "r          reload status".into(),
-                "Esc        back or leave focused field".into(),
+                "Esc        diff: back to file list; file list: back to commits".into(),
+                "Backspace  same as Esc".into(),
                 "h / ?      open help".into(),
                 "q          quit".into(),
             ],

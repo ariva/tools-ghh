@@ -24,8 +24,8 @@ impl App {
                 }
             }
             Mode::Staging => {
-                if let Some((files, diff, message)) = self.staging_regions() {
-                    regions.extend([files, diff, message]);
+                if let Some((files, diff, _)) = self.staging_regions() {
+                    regions.extend([files, diff]);
                 }
             }
             _ => {}
@@ -162,7 +162,7 @@ impl App {
                 })
             }
             Mode::Staging => {
-                let (files, diff, message) = self.staging_regions()?;
+                let (files, diff, _) = self.staging_regions()?;
                 let staging = self.staging.as_ref()?;
                 if Self::rect_contains(diff, column, row) {
                     Some(staging.diff_lines.join("\n"))
@@ -175,8 +175,6 @@ impl App {
                             .collect::<Vec<_>>()
                             .join("\n"),
                     )
-                } else if Self::rect_contains(message, column, row) {
-                    Some(staging.commit_msg.clone())
                 } else {
                     None
                 }
@@ -208,7 +206,7 @@ impl App {
                     .map_or(0, |details| usize::from(row.saturating_sub(details.y + 1)))
             }
             Mode::Staging => {
-                let Some((files, diff, message)) = self.staging_regions() else {
+                let Some((files, diff, _)) = self.staging_regions() else {
                     return 0;
                 };
                 let Some(staging) = self.staging.as_ref() else {
@@ -218,8 +216,6 @@ impl App {
                     staging.diff_scroll + usize::from(row.saturating_sub(diff.y + 1))
                 } else if Self::rect_contains(files, column, row) {
                     staging.list_state.offset() + usize::from(row.saturating_sub(files.y + 1))
-                } else if Self::rect_contains(message, column, row) {
-                    usize::from(row.saturating_sub(message.y + 1))
                 } else {
                     0
                 }

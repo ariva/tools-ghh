@@ -650,15 +650,13 @@ impl App {
         let staging_regions = self.staging_regions();
         let drawn = self.drawn_scroll.staging_diff;
         if let Some(s) = self.staging.as_mut()
-            && let Some((files_rect, diff_rect, msg_rect)) = staging_regions
+            && let Some((files_rect, diff_rect, _)) = staging_regions
         {
             if click {
                 if Self::rect_contains(files_rect, mouse.column, mouse.row) {
                     s.focus = crate::app::features::staging::StagingFocus::FileList;
                 } else if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
                     s.focus = crate::app::features::staging::StagingFocus::Diff;
-                } else if Self::rect_contains(msg_rect, mouse.column, mouse.row) {
-                    s.focus = crate::app::features::staging::StagingFocus::CommitMessage;
                 }
             }
             if up || down {

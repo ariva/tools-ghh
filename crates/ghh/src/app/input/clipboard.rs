@@ -12,7 +12,6 @@ impl App {
         match self.mode() {
             Mode::Search => self.paste_search_text(&text),
             Mode::Edit => self.paste_edit_text(&text),
-            Mode::Staging => self.paste_staging_text(&text),
             Mode::EditCommitMessage => self.paste_commit_message_editor(&text),
             Mode::EditCommitField => self.paste_commit_field_editor(&text),
             Mode::SquashMessage => self.paste_squash_message_editor(&text),
@@ -27,13 +26,6 @@ impl App {
                 .edit
                 .as_ref()
                 .map(|edit| edit.field != crate::app::EditField::Message)
-                .unwrap_or(false),
-            Mode::Staging => self
-                .staging
-                .as_ref()
-                .map(|staging| {
-                    staging.focus == crate::app::features::staging::StagingFocus::CommitMessage
-                })
                 .unwrap_or(false),
             Mode::EditCommitMessage | Mode::EditCommitField => self.commit_msg_editor.is_some(),
             Mode::SquashMessage => self.squash_msg.is_some(),

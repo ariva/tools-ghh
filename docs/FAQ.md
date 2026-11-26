@@ -57,12 +57,13 @@ force-push afterwards. Each asks before doing anything.
 
 | # | Question | Answer | More |
 |---|---|---|---|
-| 4.1 | How do I commit my changes? | `s`, `Space` on each file (or `a` for all), `c`, type the message, `Enter` | |
+| 4.1 | How do I commit my changes? | `s`, `Space` on each file (it moves on to the next one; `a` stages all), `Enter`, type the message in the editor, Save. The line `Enter: write the message and commit` under the panes shows when something is staged | |
 | 4.8 | What is row 0, "Uncommitted changes", on top of the list? | everything not committed yet: staged, unstaged and untracked files. Select it to see the files in Details, `Tab` to Details scrolls a long file list, `v` shows their changes, `Enter` opens staging. No such row when the working tree is clean | [README](../README.md#uncommitted-changes-row-0) |
-| 4.2 | How do I unstage a file? | `Space` on it again; `u` unstages everything | |
+| 4.2 | How do I unstage a file? | select it in the staged group on top and press `Space`; `u` unstages everything | |
+| 4.11 | How do I leave the staging screen? | `Esc` or `Backspace` from the file list; from the diff either one goes to the file list first | |
 | 4.10 | How do I move fast through a long file list or diff in staging? | `PgDn`/`PgUp` (or `p`/`P`) page the pane that has focus, `g`/`G` jump to its start and end; `Tab` switches between file list and diff | |
-| 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group and stays selected | |
-| 4.3 | How do I write a longer commit message? | `Alt+Enter` in the message field opens the multi-line editor | |
+| 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group; the cursor goes to the file that was under it | |
+| 4.3 | How do I write a longer commit message? | the editor `Enter` opens in staging takes as many lines as you like; first line is the subject | |
 | 4.4 | Can I stage part of a file? | no, whole files only | [not built](ARCHITECTURE.md#not-built) |
 | 4.5 | How do I look at my stashes? | `S` | [README](../README.md#browse-stashes-s) |
 | 4.6 | How do I bring a stash back? | in the stash screen: `a` applies and keeps it, `p` applies and removes it | [README](../README.md#browse-stashes-s) |

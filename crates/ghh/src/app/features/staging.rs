@@ -1,5 +1,5 @@
-//! Staging screen: stage/unstage files, review the diff, write the commit
-//! message, and create the commit (`Mode::Staging` + `Mode::EditCommitMessage`).
+//! Staging screen: stage/unstage files, review the diff, then Enter opens
+//! the message editor and its Save creates the commit (`Mode::Staging` + `Mode::EditCommitMessage`).
 
 use crate::app::App;
 use crate::app::editor::MultilineEditor;
@@ -16,16 +16,18 @@ use ratatui::widgets::ListState;
 pub enum StagingFocus {
     FileList,
     Diff,
-    CommitMessage,
 }
+
+/// Shown when Enter asks for a commit and no file is staged.
+const NOTHING_STAGED: &str = "Nothing staged: Space stages the file, a stages all.";
 
 pub struct StagingState {
     pub files: Vec<git::FileStatus>,
     pub list_state: ListState,
     pub diff_lines: Vec<String>,
     pub diff_scroll: usize,
+    /// Message of a commit that was not confirmed; the editor starts with it.
     pub commit_msg: String,
-    pub msg_cursor: usize,
     pub focus: StagingFocus,
     pub status_msg: Option<String>,
 }
@@ -43,7 +45,6 @@ impl StagingState {
             diff_lines: Vec::new(),
             diff_scroll: 0,
             commit_msg: String::new(),
-            msg_cursor: 0,
             focus: StagingFocus::FileList,
             status_msg: None,
         };
@@ -118,79 +119,29 @@ impl StagingState {
         }
     }
 
+    /// Select `file` (same path and state); the last row when there is
+    /// none, which is where a file toggled on the last row leaves a gap.
+    fn select_file(&mut self, repo_path: &std::path::Path, file: Option<&git::FileStatus>) {
+        let Some(last) = self.files.len().checked_sub(1) else {
+            return;
+        };
+        let row = file
+            .and_then(|file| {
+                self.files
+                    .iter()
+                    .position(|f| f.path == file.path && f.stage_state == file.stage_state)
+            })
+            .unwrap_or(last);
+        if self.list_state.selected() != Some(row) {
+            self.list_state.select(Some(row));
+            self.refresh_diff(repo_path);
+        }
+    }
+
     /// Run a stage/unstage-style git op, surface its error, then reload.
     fn run_git_op(&mut self, repo_path: &std::path::Path, result: Result<()>) {
         self.status_msg = result.err().map(|e| format!("Error: {e}"));
         self.reload(repo_path);
-    }
-
-    pub fn msg_insert(&mut self, c: char) {
-        let cursor = self.msg_cursor;
-        let byte_pos = self
-            .commit_msg
-            .char_indices()
-            .nth(cursor)
-            .map(|(i, _)| i)
-            .unwrap_or(self.commit_msg.len());
-        self.commit_msg.insert(byte_pos, c);
-        self.msg_cursor += 1;
-    }
-
-    pub fn msg_delete_before(&mut self) {
-        if self.msg_cursor == 0 {
-            return;
-        }
-        let cursor = self.msg_cursor;
-        let byte_pos = self
-            .commit_msg
-            .char_indices()
-            .nth(cursor - 1)
-            .map(|(i, _)| i)
-            .unwrap_or(0);
-        self.commit_msg.remove(byte_pos);
-        self.msg_cursor -= 1;
-    }
-
-    pub fn msg_delete_at(&mut self) {
-        let cursor = self.msg_cursor;
-        let len = self.commit_msg.chars().count();
-        if cursor >= len {
-            return;
-        }
-        let byte_pos = self
-            .commit_msg
-            .char_indices()
-            .nth(cursor)
-            .map(|(i, _)| i)
-            .unwrap_or(self.commit_msg.len());
-        self.commit_msg.remove(byte_pos);
-    }
-
-    pub fn msg_move_left(&mut self) {
-        if self.msg_cursor > 0 {
-            self.msg_cursor -= 1;
-        }
-    }
-
-    pub fn msg_move_right(&mut self) {
-        let len = self.commit_msg.chars().count();
-        if self.msg_cursor < len {
-            self.msg_cursor += 1;
-        }
-    }
-
-    pub fn msg_cursor_end(&mut self) {
-        self.msg_cursor = self.commit_msg.chars().count();
-    }
-
-    pub fn msg_insert_text(&mut self, text: &str) {
-        for ch in text.chars() {
-            match ch {
-                '\r' => {}
-                '\n' => self.msg_insert(' '),
-                c => self.msg_insert(c),
-            }
-        }
     }
 }
 
@@ -225,17 +176,6 @@ impl App {
             return false;
         };
 
-        // Enter in the message field commits; Alt+Enter opens the big editor.
-        if staging.focus == StagingFocus::CommitMessage && key.code == KeyCode::Enter {
-            if key.modifiers.contains(KeyModifiers::ALT) {
-                self.enter_commit_message_editor();
-                return false;
-            }
-            let msg = staging.commit_msg.clone();
-            let has_staged = staging.has_staged();
-            return self.request_commit(msg, has_staged);
-        }
-
         match staging.focus {
             StagingFocus::FileList => match key.code {
                 KeyCode::Char('q') => return true,
@@ -243,9 +183,11 @@ impl App {
                 KeyCode::Enter => {
                     if staging.has_staged() {
                         self.enter_commit_message_editor();
+                    } else {
+                        staging.status_msg = Some(NOTHING_STAGED.into());
                     }
                 }
-                KeyCode::Esc => {
+                KeyCode::Esc | KeyCode::Backspace => {
                     self.staging = None;
                     self.nav.pop();
                     self.refresh_working_tree();
@@ -259,12 +201,21 @@ impl App {
                 KeyCode::End | KeyCode::Char('G') => staging.select_by(&repo_path, isize::MAX),
                 KeyCode::Char(' ') => {
                     if let Some(file) = staging.selected_file().cloned() {
+                        // The file moves to another group; the selection
+                        // goes to the one that was under it, so Space
+                        // again takes the next file.
+                        let row = staging.list_state.selected().unwrap_or(0);
+                        let below = staging.files.get(row + 1).cloned();
                         let result = if file.stage_state == git::StageState::Staged {
                             git::unstage_file(&repo_path, &file)
                         } else {
                             git::stage_file(&repo_path, &file)
                         };
+                        let done = result.is_ok();
                         staging.run_git_op(&repo_path, result);
+                        if done {
+                            staging.select_file(&repo_path, below.as_ref());
+                        }
                     }
                 }
                 KeyCode::Char('a') => {
@@ -279,9 +230,7 @@ impl App {
                     staging.status_msg = None;
                     staging.reload(&repo_path);
                 }
-                KeyCode::Char('c') => staging.focus = StagingFocus::CommitMessage,
-                KeyCode::Tab => staging.focus = StagingFocus::Diff,
-                KeyCode::BackTab => staging.focus = StagingFocus::CommitMessage,
+                KeyCode::Tab | KeyCode::BackTab => staging.focus = StagingFocus::Diff,
                 _ => {}
             },
             StagingFocus::Diff => match key.code {
@@ -290,11 +239,13 @@ impl App {
                 KeyCode::Enter => {
                     if staging.has_staged() {
                         self.enter_commit_message_editor();
+                    } else {
+                        staging.status_msg = Some(NOTHING_STAGED.into());
                     }
                 }
-                KeyCode::Esc => staging.focus = StagingFocus::FileList,
-                KeyCode::Tab => staging.focus = StagingFocus::CommitMessage,
-                KeyCode::BackTab => staging.focus = StagingFocus::FileList,
+                KeyCode::Esc | KeyCode::Backspace | KeyCode::Tab | KeyCode::BackTab => {
+                    staging.focus = StagingFocus::FileList
+                }
                 // Drawing stops the scroll at the end of the diff.
                 KeyCode::Down | KeyCode::Char('j') => {
                     staging.diff_scroll = staging.diff_scroll.saturating_add(1);
@@ -310,25 +261,6 @@ impl App {
                 }
                 KeyCode::Home | KeyCode::Char('g') => staging.diff_scroll = 0,
                 KeyCode::End | KeyCode::Char('G') => staging.diff_scroll = usize::MAX,
-                _ => {}
-            },
-            StagingFocus::CommitMessage => match key.code {
-                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return true,
-                KeyCode::Esc => staging.focus = StagingFocus::FileList,
-                KeyCode::Tab => staging.focus = StagingFocus::FileList,
-                KeyCode::BackTab => staging.focus = StagingFocus::Diff,
-                KeyCode::Char(c)
-                    if key.modifiers == KeyModifiers::NONE
-                        || key.modifiers == KeyModifiers::SHIFT =>
-                {
-                    staging.msg_insert(c);
-                }
-                KeyCode::Backspace => staging.msg_delete_before(),
-                KeyCode::Delete => staging.msg_delete_at(),
-                KeyCode::Left => staging.msg_move_left(),
-                KeyCode::Right => staging.msg_move_right(),
-                KeyCode::Home => staging.msg_cursor = 0,
-                KeyCode::End => staging.msg_cursor_end(),
                 _ => {}
             },
         }
@@ -443,10 +375,8 @@ impl App {
 
     fn apply_commit_editor_text(&mut self, text: &str) {
         if let Some(s) = self.staging.as_mut() {
-            // Show the first line in the single-line staging input; the full
-            // text is used for the actual commit.
-            s.commit_msg = text.lines().next().unwrap_or("").to_string();
-            s.msg_cursor = s.commit_msg.chars().count();
+            // Kept for the next Enter, should the commit not be confirmed.
+            s.commit_msg = text.to_string();
         }
     }
 
@@ -478,20 +408,6 @@ impl App {
         self.nav.pop();
     }
 
-    pub(crate) fn paste_staging_text(&mut self, text: &str) {
-        if let Some(staging) = self.staging.as_mut()
-            && staging.focus == StagingFocus::CommitMessage
-        {
-            if text.contains('\n') || text.contains('\r') {
-                // Multi-line pastes get the full editor.
-                self.enter_commit_message_editor();
-                self.paste_commit_message_editor(text);
-            } else {
-                staging.msg_insert_text(text);
-            }
-        }
-    }
-
     pub(crate) fn paste_commit_message_editor(&mut self, text: &str) {
         if let Some(editor) = self.commit_msg_editor.as_mut() {
             editor.insert_mode = true;
@@ -504,8 +420,57 @@ impl App {
 mod tests {
     use super::*;
 
-    /// Staging a file moves it up into the staged group; the selection
-    /// stays on that file, so Space again unstages it.
+    /// Space toggles the file and moves to the one that was under it:
+    /// three Spaces stage three files; on the last row it stays there.
+    #[test]
+    fn space_toggles_and_moves_to_the_next_file() {
+        let dir = std::env::temp_dir().join(format!("ghh-staging-space-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git2::Repository::init(&dir).unwrap();
+        for name in ["a.txt", "b.txt", "c.txt"] {
+            std::fs::write(dir.join(name), "x\n").unwrap();
+        }
+        let mut app = App::new(dir.clone(), true);
+        app.initial_history_loader_rx = None;
+        app.staging = Some(StagingState::new(&dir).unwrap());
+        app.nav.push(Mode::Staging);
+        let space = |app: &mut App| {
+            app.handle_staging(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
+        };
+        let selected = |app: &App| {
+            let file = app.staging.as_ref().unwrap().selected_file().unwrap();
+            (file.path.clone(), file.stage_state.clone())
+        };
+        let staged = |app: &App| {
+            let files = &app.staging.as_ref().unwrap().files;
+            files
+                .iter()
+                .filter(|f| f.stage_state == git::StageState::Staged)
+                .count()
+        };
+
+        space(&mut app);
+        assert_eq!(selected(&app), ("b.txt".into(), git::StageState::Untracked));
+        space(&mut app);
+        assert_eq!(selected(&app), ("c.txt".into(), git::StageState::Untracked));
+        assert_eq!(staged(&app), 2);
+        // Last row: c.txt is staged and moves up; the cursor stays last.
+        space(&mut app);
+        assert_eq!(staged(&app), 3);
+        assert_eq!(selected(&app), ("c.txt".into(), git::StageState::Staged));
+
+        // Unstaging from the top: a.txt drops under the staged ones, the
+        // cursor goes to b.txt, which was under it.
+        app.staging.as_mut().unwrap().list_state.select(Some(0));
+        space(&mut app);
+        assert_eq!(selected(&app), ("b.txt".into(), git::StageState::Staged));
+        assert_eq!(staged(&app), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A reload after stage all / unstage all keeps the selection on the
+    /// same file, wherever its group put it.
     #[test]
     fn selection_follows_a_file_into_its_new_group() {
         let dir = std::env::temp_dir().join(format!("ghh-staging-follow-{}", std::process::id()));
@@ -530,6 +495,54 @@ mod tests {
         staging.run_git_op(&dir, git::unstage_file(&dir, &selected));
         assert_eq!(staging.selected_file().unwrap().path, "c.txt");
         assert_eq!(staging.list_state.selected(), Some(2));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Enter opens the message editor from the file list and the diff when
+    /// something is staged; with nothing staged it says so. Tab moves
+    /// between the two panes only.
+    #[test]
+    fn enter_opens_the_message_editor_when_something_is_staged() {
+        let dir = std::env::temp_dir().join(format!("ghh-staging-editor-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("a.txt"), "x\n").unwrap();
+        let mut app = App::new(dir.clone(), true);
+        app.initial_history_loader_rx = None;
+        app.staging = Some(StagingState::new(&dir).unwrap());
+        app.nav.push(Mode::Staging);
+        let press = |app: &mut App, code| {
+            app.handle_staging(KeyEvent::new(code, KeyModifiers::NONE));
+        };
+        let focus = |app: &App| app.staging.as_ref().unwrap().focus;
+
+        press(&mut app, KeyCode::Enter);
+        assert!(*app.mode() == Mode::Staging, "nothing staged: no editor");
+        assert_eq!(
+            app.staging.as_ref().unwrap().status_msg.as_deref(),
+            Some(NOTHING_STAGED)
+        );
+
+        press(&mut app, KeyCode::Char(' '));
+        assert!(app.staging.as_ref().unwrap().has_staged());
+        press(&mut app, KeyCode::Enter);
+        assert!(*app.mode() == Mode::EditCommitMessage, "from the file list");
+        app.discard_commit_message_editor();
+
+        press(&mut app, KeyCode::Tab);
+        assert!(focus(&app) == StagingFocus::Diff);
+        press(&mut app, KeyCode::Enter);
+        assert!(*app.mode() == Mode::EditCommitMessage, "from the diff");
+        app.discard_commit_message_editor();
+        press(&mut app, KeyCode::Tab);
+        assert!(focus(&app) == StagingFocus::FileList, "two panes to cycle");
+
+        // The pane and its keys are gone: `c` and letters do nothing.
+        press(&mut app, KeyCode::Char('c'));
+        press(&mut app, KeyCode::Char('x'));
+        assert!(focus(&app) == StagingFocus::FileList);
+        assert_eq!(app.staging.as_ref().unwrap().commit_msg, "");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -578,6 +591,11 @@ mod tests {
         assert_eq!(scroll(&app), 1);
         press(&mut app, KeyCode::PageDown);
         assert!(scroll(&app) > 2);
+        // Backspace is Esc: in the diff back to the file list, in the file
+        // list out of the screen.
+        press(&mut app, KeyCode::Backspace);
+        assert!(app.staging.as_ref().unwrap().focus == StagingFocus::FileList);
+        press(&mut app, KeyCode::Tab);
         press(&mut app, KeyCode::Char('G'));
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
         terminal
@@ -587,6 +605,10 @@ mod tests {
         let screen: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
         assert!(screen.contains("+line 299") && screen.contains("+line 280"));
         assert!(scroll(&app) < 300, "stopped at the end: {}", scroll(&app));
+
+        press(&mut app, KeyCode::BackTab);
+        press(&mut app, KeyCode::Backspace);
+        assert!(app.staging.is_none() && *app.mode() == Mode::Normal);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

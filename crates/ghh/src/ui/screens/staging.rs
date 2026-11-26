@@ -15,11 +15,12 @@ pub fn render_staging(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
 
     // Geometry comes from app::layout so mouse hit-testing always agrees.
-    let chunks = crate::app::layout::main_chunks(area, 3);
-    let (files_rect, diff_rect, _) = crate::app::layout::staging_regions_in(area, app.splits);
+    let chunks = crate::app::layout::main_chunks(area, 1);
+    let (files_rect, diff_rect, hint_rect) =
+        crate::app::layout::staging_regions_in(area, app.splits);
 
     let title = Paragraph::new(
-        "STAGING  │  Tab: cycle focus  │  j/k: list or diff scroll  │  Enter: commit  │  Alt+Enter: msg editor  │  Space: toggle  │  a: stage all  │  u: unstage all  │  c: commit msg  │  r: reload  │  Esc: back",
+        "STAGING  │  Tab: file list / diff  │  j/k: list or diff scroll  │  Space: toggle  │  a: stage all  │  u: unstage all  │  Enter: commit  │  r: reload  │  Esc/Backspace: back",
     )
     .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
     .alignment(ratatui::layout::Alignment::Center);
@@ -27,7 +28,7 @@ pub fn render_staging(frame: &mut Frame, app: &mut App) {
 
     render_files_panel(frame, app, files_rect);
     render_staging_diff_panel(frame, app, diff_rect);
-    render_commit_message_row(frame, app, chunks[2]);
+    render_commit_hint_row(frame, app, hint_rect);
     render_staging_status_row(frame, app, chunks[3]);
 }
 
@@ -128,53 +129,30 @@ fn render_staging_diff_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
     frame.render_widget(diff_para, rect);
 }
 
-/// One-line commit message input with contextual title.
-fn render_commit_message_row(frame: &mut Frame, app: &App, rect: Rect) {
-    let staging = match app.staging.as_ref() {
-        Some(s) => s,
-        None => return,
-    };
-    let has_staged = staging.has_staged();
-    let is_msg_focus = staging.focus == StagingFocus::CommitMessage;
-    let msg_title = if has_staged {
-        if is_msg_focus {
-            " Commit Message (Enter: commit, Alt+Enter: editor) "
-        } else {
-            " Commit Message (c: focus) "
-        }
-    } else {
-        " Commit Message (no staged files) "
-    };
-    let msg_block = Block::default()
-        .title(msg_title)
-        .borders(Borders::ALL)
-        .border_style(if is_msg_focus {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        });
-
-    let cursor = staging.msg_cursor.min(staging.commit_msg.chars().count());
-    let before: String = staging.commit_msg.chars().take(cursor).collect();
-    let after: String = staging.commit_msg.chars().skip(cursor).collect();
-    let msg_line = if is_msg_focus {
-        Line::from(vec![
-            Span::styled(before, Style::default().fg(Color::White)),
-            Span::styled(
-                "\u{2502}",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(after, Style::default().fg(Color::White)),
-        ])
-    } else {
-        Line::from(Span::styled(
-            staging.commit_msg.clone(),
-            Style::default().fg(Color::Gray),
+/// What Enter does, shown only while there is something to commit.
+fn render_commit_hint_row(frame: &mut Frame, app: &App, rect: Rect) {
+    let staged = app.staging.as_ref().map_or(0, |staging| {
+        staging
+            .files
+            .iter()
+            .filter(|file| file.stage_state == StageState::Staged)
+            .count()
+    });
+    if staged == 0 {
+        return;
+    }
+    let files = if staged == 1 { "file" } else { "files" };
+    frame.render_widget(
+        Paragraph::new(format!(
+            " Enter: write the message and commit ({staged} staged {files})"
         ))
-    };
-    frame.render_widget(Paragraph::new(msg_line).block(msg_block), rect);
+        .style(
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ),
+        rect,
+    );
 }
 
 /// Status line: staging message first, app message as fallback.
@@ -205,8 +183,7 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend};
 
     /// Staging screen smoke + landmarks: title, file with stage marker, diff
-    /// pane, commit-message block, status line (guards the sectioning
-    /// refactor).
+    /// pane, commit hint, status line (guards the sectioning refactor).
     #[test]
     fn staging_screen_draws_all_blocks() {
         let dir = std::env::temp_dir().join(format!("ghh-staging-render-{}", std::process::id()));
@@ -231,8 +208,7 @@ mod tests {
             list_state,
             diff_lines: vec!["+added line".into(), "-removed line".into()],
             diff_scroll: 0,
-            commit_msg: "feat: staged change".into(),
-            msg_cursor: 4,
+            commit_msg: String::new(),
             focus: crate::app::features::staging::StagingFocus::FileList,
             status_msg: Some("2 files".into()),
         });
@@ -255,11 +231,19 @@ mod tests {
             "src/lib.rs",
             "notes.txt",
             "+added line",
-            "Commit Message",
-            "feat: staged change",
+            "Enter: write the message and commit (1 staged file)",
             "2 files",
         ] {
             assert!(all.contains(needle), "{needle:?} missing:\n{all}");
         }
+
+        // Nothing staged: no commit hint.
+        app.staging.as_mut().unwrap().files.remove(0);
+        terminal
+            .draw(|frame| super::render_staging(frame, &mut app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let all: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+        assert!(all.contains("notes.txt") && !all.contains("Enter: write the message"));
     }
 }

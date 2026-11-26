@@ -90,9 +90,9 @@ pub(crate) fn commit_details_region_in(area: Rect, splits: Splits) -> Rect {
     main_chunks(area, splits.details_height)[2]
 }
 
-/// Staging screen: file list, diff, and the commit-message input row.
+/// Staging screen: file list, diff, and the one-line commit hint under them.
 pub(crate) fn staging_regions_in(area: Rect, splits: Splits) -> (Rect, Rect, Rect) {
-    let chunks = main_chunks(area, 3);
+    let chunks = main_chunks(area, 1);
     let mid = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -574,11 +574,11 @@ mod tests {
 
     #[test]
     fn staging_regions_tile_the_screen() {
-        let (files, diff, message) = staging_regions_in(AREA, SPLITS);
+        let (files, diff, hint) = staging_regions_in(AREA, SPLITS);
         assert_eq!(files.y, 1);
         assert_eq!(files.width + diff.width, 120);
-        assert_eq!(message.height, 3);
-        assert_eq!(message.y, files.bottom());
+        assert_eq!(hint.height, 1);
+        assert_eq!(hint.y, files.bottom());
     }
 
     /// A wheel notch never moves further than a page: in a pane with one

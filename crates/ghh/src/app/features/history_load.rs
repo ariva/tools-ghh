@@ -742,6 +742,41 @@ mod tests {
         assert_eq!(app.commit_list_focus, CommitListFocus::List);
     }
 
+    /// Scrolling the diff or info pane past its end stops with the last
+    /// line at the bottom of the pane, however far the keys pushed.
+    #[test]
+    fn diff_panes_do_not_scroll_past_the_last_line() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut app = test_app_with(merge_chain(), "diff-scroll-end");
+        app.show_commit_diff = true;
+        app.select_commit_idx(0);
+        let hash = app.commits[0].hash.clone();
+        let lines: Vec<String> = (0..100).map(|i| format!("+line {i}")).collect();
+        app.commit_diff_file_cache.insert(hash.clone(), Vec::new());
+        app.commit_diff_cache.insert(hash, lines);
+        app.commit_diff_scroll = 5_000;
+        app.commit_diff_info_scroll = 5_000;
+
+        let mut terminal = Terminal::new(TestBackend::new(140, 45)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(frame, &mut app))
+            .unwrap();
+        let screen: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(screen.contains("+line 99"), "last diff line is on screen");
+        assert!(app.commit_diff_scroll < 100, "{}", app.commit_diff_scroll);
+        assert!(
+            screen.contains("+line 90"),
+            "pane is still full, not one line at the top"
+        );
+        assert!(app.commit_diff_info_scroll < 50);
+    }
+
     /// M pressed again inside the view it opened: same merge, so no second
     /// level is stacked; the commit stays selected.
     #[test]

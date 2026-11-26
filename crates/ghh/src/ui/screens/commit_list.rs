@@ -421,6 +421,25 @@ fn render_diff_panels(
         } else {
             render_commit_info_lines(selected, stats, diff_files, info_terms)
         };
+        // Every key and wheel step only adds to the scroll positions; the
+        // end of each pane is known here, so this is where they stop: last
+        // line on the last row.
+        let last_scroll = |lines: usize, pane: Rect| {
+            lines.saturating_sub(usize::from(pane.height.saturating_sub(2)).max(1))
+        };
+        app.commit_diff_info_scroll = app
+            .commit_diff_info_scroll
+            .min(last_scroll(info_lines.len(), diff_sections[0]));
+        // Not while the diff is still loading: the placeholder is one line
+        // and would throw away a position the loaded diff can hold.
+        if diff_key
+            .as_ref()
+            .is_some_and(|key| app.commit_diff_cache.contains_key(key))
+        {
+            app.commit_diff_scroll = app
+                .commit_diff_scroll
+                .min(last_scroll(diff_lines.len(), diff_sections[1]));
+        }
         let info_meta = scroll_label(
             app.commit_diff_info_scroll,
             info_lines.len(),

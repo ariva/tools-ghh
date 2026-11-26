@@ -594,7 +594,7 @@ impl App {
         let row = stash.list_state.selected().unwrap_or(0);
         if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
             stash.diff_focused = delta == 0 || stash.diff_focused;
-            stash.scroll_diff(delta * 3);
+            stash.scroll_diff(delta * crate::app::layout::pane_wheel_step(diff_rect) as isize);
         } else if Self::rect_contains(list_rect, mouse.column, mouse.row) {
             let target = if delta == 0 {
                 stash.diff_focused = false;
@@ -634,10 +634,11 @@ impl App {
             }
             if up || down {
                 if Self::rect_contains(diff_rect, mouse.column, mouse.row) {
+                    let step = crate::app::layout::pane_wheel_step(diff_rect);
                     if up {
-                        s.diff_scroll = s.diff_scroll.saturating_sub(3);
+                        s.diff_scroll = s.diff_scroll.saturating_sub(step);
                     } else {
-                        s.diff_scroll = s.diff_scroll.saturating_add(3);
+                        s.diff_scroll = s.diff_scroll.saturating_add(step);
                     }
                 } else if Self::rect_contains(files_rect, mouse.column, mouse.row) {
                     if up {
@@ -725,14 +726,14 @@ impl App {
             }
             if (up || down || click)
                 && self.working_tree_selected()
-                && self
-                    .commit_details_region()
-                    .is_some_and(|details| Self::rect_contains(details, mouse.column, mouse.row))
+                && let Some(details) = self.commit_details_region()
+                && Self::rect_contains(details, mouse.column, mouse.row)
             {
                 if click {
                     self.commit_list_focus = CommitListFocus::Details;
                 } else {
-                    self.scroll_working_tree_details(if up { -3 } else { 3 });
+                    let step = crate::app::layout::pane_wheel_step(details) as isize;
+                    self.scroll_working_tree_details(if up { -step } else { step });
                 }
                 return;
             }
@@ -741,12 +742,13 @@ impl App {
                     && Self::rect_contains(info_rect, mouse.column, mouse.row)
                 {
                     let previous = self.commit_diff_info_scroll;
+                    let step = crate::app::layout::pane_wheel_step(info_rect);
                     if up {
                         self.commit_diff_info_scroll =
-                            self.commit_diff_info_scroll.saturating_sub(3);
+                            self.commit_diff_info_scroll.saturating_sub(step);
                     } else {
                         self.commit_diff_info_scroll =
-                            self.commit_diff_info_scroll.saturating_add(3);
+                            self.commit_diff_info_scroll.saturating_add(step);
                     }
                     self.preserve_text_selection_on_scroll(
                         info_rect,
@@ -762,10 +764,13 @@ impl App {
                         .unwrap_or(false)
                 {
                     let previous = self.commit_diff_scroll;
+                    let step = diff_sections.map_or(3, |(_, patch_rect)| {
+                        crate::app::layout::pane_wheel_step(patch_rect)
+                    });
                     if up {
-                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_sub(3);
+                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_sub(step);
                     } else {
-                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_add(3);
+                        self.commit_diff_scroll = self.commit_diff_scroll.saturating_add(step);
                     }
                     if let Some((_, diff_rect)) = diff_sections {
                         self.preserve_text_selection_on_scroll(

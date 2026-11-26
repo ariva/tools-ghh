@@ -92,6 +92,12 @@ pub(crate) fn stash_regions_in(area: Rect, splits: Splits) -> (Rect, Rect, Rect)
     (list, diff, chunks[2])
 }
 
+/// Lines one mouse wheel notch scrolls a bordered pane: three, less in a
+/// pane too short to show three new lines without skipping any.
+pub(crate) fn pane_wheel_step(rect: Rect) -> usize {
+    pane_page_step(rect).min(3)
+}
+
 /// Lines a PageUp/PageDown jumps inside a bordered pane.
 pub(crate) fn pane_page_step(rect: Rect) -> usize {
     usize::from(rect.height.saturating_sub(2))
@@ -525,6 +531,18 @@ mod tests {
         assert_eq!(files.width + diff.width, 120);
         assert_eq!(message.height, 3);
         assert_eq!(message.y, files.bottom());
+    }
+
+    /// A wheel notch never moves further than a page: in a pane with one
+    /// or two text rows it would skip lines the user never saw.
+    #[test]
+    fn wheel_step_is_three_lines_but_never_more_than_a_page() {
+        let pane = |height| Rect::new(0, 0, 40, height);
+        assert_eq!(pane_wheel_step(pane(20)), 3);
+        assert_eq!(pane_wheel_step(pane(6)), 3); // 4 text rows
+        assert_eq!(pane_wheel_step(pane(5)), 2); // 3 text rows
+        assert_eq!(pane_wheel_step(pane(4)), 1); // 2 text rows
+        assert_eq!(pane_wheel_step(pane(3)), 1); // 1 text row
     }
 
     #[test]

@@ -2,7 +2,7 @@ use super::diff::{render_diff_window, scroll_label};
 use crate::app::App;
 use crate::app::features::staging::StagingFocus;
 use crate::git::StageState;
-use crate::ui::helpers::truncate;
+use crate::ui::helpers::fit_path;
 use ratatui::{
     Frame,
     layout::Rect,
@@ -34,6 +34,9 @@ pub fn render_staging(frame: &mut Frame, app: &mut App) {
 
 /// File list with stage-state markers and focus border.
 fn render_files_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
+    // What a row has left for the path: borders, the "> " cursor column and
+    // the "[M] " marker taken off; the state label comes off per file.
+    let row_room = usize::from(rect.width).saturating_sub(2 + 2 + 4);
     let (items, file_count) = {
         let staging = match app.staging.as_ref() {
             Some(s) => s,
@@ -54,7 +57,7 @@ fn render_files_panel(frame: &mut Frame, app: &mut App, rect: Rect) {
                         format!("[{}] ", f.status_char),
                         Style::default().fg(ch_color).add_modifier(Modifier::BOLD),
                     ),
-                    Span::raw(truncate(&f.path, 28)),
+                    Span::raw(fit_path(&f.path, row_room.saturating_sub(label.len()))),
                     Span::styled(label, Style::default().fg(ch_color)),
                 ]);
                 ListItem::new(line)
@@ -245,5 +248,54 @@ mod tests {
         let buffer = terminal.backend().buffer();
         let all: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
         assert!(all.contains("notes.txt") && !all.contains("Enter: write the message"));
+    }
+
+    /// A path longer than the pane keeps its file name: directories are
+    /// cut from the left, at a `/`.
+    #[test]
+    fn long_paths_keep_the_file_name() {
+        let dir = std::env::temp_dir().join(format!("ghh-staging-paths-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut app = crate::app::App::new(dir, true);
+        app.nav.push(crate::app::models::Mode::Staging);
+        app.staging = Some(crate::app::features::staging::StagingState {
+            files: vec![crate::git::FileStatus {
+                path: "crates/ghh/src/app/features/some/deeper/place/staging.rs".into(),
+                stage_state: crate::git::StageState::Unstaged,
+                status_char: 'M',
+            }],
+            list_state: Default::default(),
+            diff_lines: Vec::new(),
+            diff_scroll: 0,
+            commit_msg: String::new(),
+            focus: crate::app::features::staging::StagingFocus::FileList,
+            status_msg: None,
+        });
+        let draw = |app: &mut crate::app::App, width: u16| -> String {
+            let mut terminal = Terminal::new(TestBackend::new(width, 12)).unwrap();
+            terminal
+                .draw(|frame| super::render_staging(frame, app))
+                .unwrap();
+            let buffer = terminal.backend().buffer().clone();
+            (0..12)
+                .map(|y| {
+                    (0..width)
+                        .map(|x| buffer[(x, y)].symbol().to_string())
+                        .collect::<String>()
+                        + "\n"
+                })
+                .collect()
+        };
+        let narrow = draw(&mut app, 100);
+        assert!(
+            narrow.contains("/staging.rs unstaged") && narrow.contains("[M] .../"),
+            "{narrow}"
+        );
+        // A wide pane shows the whole path.
+        let wide = draw(&mut app, 220);
+        assert!(
+            wide.contains("[M] crates/ghh/src/app/features/some/deeper/place/staging.rs unstaged"),
+            "{wide}"
+        );
     }
 }

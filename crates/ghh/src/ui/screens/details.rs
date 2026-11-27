@@ -197,6 +197,30 @@ pub fn render_status(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Compute the status bar content for the main commit-list view.
 pub fn status_line_content(app: &App) -> Line<'static> {
+    let mut line = status_line_messages(app);
+    // First and always there while it is true: every other segment is
+    // replaced by the next action, this one must not be.
+    if let Some(notice) = &app.repo_watch.notice {
+        if !line.spans.is_empty() {
+            line.spans.insert(
+                0,
+                Span::styled("  |  ", Style::default().fg(Color::DarkGray)),
+            );
+        }
+        line.spans.insert(
+            0,
+            Span::styled(
+                notice.clone(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        );
+    }
+    line
+}
+
+fn status_line_messages(app: &App) -> Line<'static> {
     let loading_line = || {
         Line::from(vec![
             Span::styled("Loading ", Style::default().fg(Color::Yellow)),

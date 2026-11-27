@@ -48,6 +48,30 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// A file path cut to `room` characters with the file name kept, for every
+/// pane that lists files: `.../` and the trailing directories that fit as a
+/// whole (`.../features/staging.rs`). A file name too long even for that
+/// keeps its end (`...ery_long_name.rs`), where the extension is.
+pub fn fit_path(path: &str, room: usize) -> String {
+    const MARK: &str = ".../";
+    let length = path.chars().count();
+    if length <= room {
+        return path.to_string();
+    }
+    // First `/` from the left whose remainder fits = the longest tail.
+    let tail = path
+        .match_indices('/')
+        .map(|(at, _)| &path[at + 1..])
+        .find(|tail| tail.chars().count() + MARK.len() <= room);
+    if let Some(tail) = tail {
+        return format!("{MARK}{tail}");
+    }
+    // No room for the mark itself: the last characters say more than dots.
+    let mark = if room > 3 { "..." } else { "" };
+    let kept: String = path.chars().skip(length - (room - mark.len())).collect();
+    format!("{mark}{kept}")
+}
+
 /// Like `truncate`, but when `ranges` (char ranges of search hits) would be
 /// cut off, the window shifts so the FIRST hit stays visible, with a leading
 /// "..." marking the skipped prefix. Result is at most `max_chars` chars.
@@ -120,8 +144,32 @@ pub fn highlight_spans(
 
 #[cfg(test)]
 mod highlight_tests {
-    use super::{highlight_spans, truncate_keeping_match};
+    use super::{fit_path, highlight_spans, truncate_keeping_match};
     use ratatui::style::{Color, Style};
+
+    #[test]
+    fn fit_path_keeps_the_file_name() {
+        let path = "crates/ghh/src/app/features/staging.rs";
+        assert_eq!(fit_path(path, 80), path, "fits: untouched");
+        assert_eq!(fit_path(path, path.len()), path);
+        // Whole directories from the right, as many as fit.
+        assert_eq!(fit_path(path, 30), ".../app/features/staging.rs");
+        assert_eq!(fit_path(path, 24), ".../features/staging.rs");
+        assert_eq!(fit_path(path, 14), ".../staging.rs");
+        // The name alone does not fit: its end, with the extension.
+        assert_eq!(fit_path(path, 10), "...ging.rs");
+        assert_eq!(fit_path("a_very_long_file_name.rs", 12), "...e_name.rs");
+        // Never longer than the room, down to nothing.
+        for room in 0..path.len() {
+            assert!(fit_path(path, room).chars().count() <= room, "room {room}");
+        }
+        assert_eq!(fit_path(path, 3), ".rs");
+        // Characters, not bytes.
+        assert_eq!(
+            fit_path("katalogas/ąčęėįšųū/failas.rs", 14),
+            ".../failas.rs"
+        );
+    }
 
     #[test]
     fn truncate_keeping_match_windows_to_first_hit() {

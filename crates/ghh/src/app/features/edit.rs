@@ -224,7 +224,6 @@ impl App {
             self.nav.reset(Mode::Normal);
             return;
         };
-        let visible_idx = self.list_state.selected().unwrap_or(0);
 
         let commit_hash = self.commits[commit_idx].hash.clone();
         let orig_date = self.commits[commit_idx].date_edit_text().into_owned();
@@ -241,12 +240,10 @@ impl App {
             Ok(()) => match git::load_commits(&self.repo_path, self.commit_sort) {
                 Ok(commits) => {
                     self.replace_commits(commits);
-                    let new_idx = visible_idx.min(self.visible.len().saturating_sub(1));
-                    self.list_state.select(if self.commits.is_empty() {
-                        None
-                    } else {
-                        Some(new_idx)
-                    });
+                    // An edit keeps the order of the list: same commit
+                    // index. Not the same row: the reload expands collapsed
+                    // merges and leaves a drill view.
+                    self.select_commit_idx(commit_idx.min(self.commits.len().saturating_sub(1)));
                     self.status_message = Some("Commit modified successfully.".into());
                     self.event_bus.emit(AppEvent::Action {
                         kind: ActionKind::CommitModified,
@@ -421,5 +418,82 @@ impl App {
             editor.insert_mode = true;
             editor.insert_text(text);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use std::process::Command;
+
+    fn git(dir: &Path, args: &[&str]) {
+        let ok = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(ok, "git {args:?} failed");
+    }
+
+    fn commit(dir: &Path, file: &str, message: &str) {
+        std::fs::write(dir.join(file), format!("{message}\n")).unwrap();
+        git(dir, &["add", file]);
+        git(dir, &["commit", "-qm", message]);
+    }
+
+    /// The edited commit stays selected when the reload expands a merge
+    /// that was collapsed above it: its row moves, the commit does not.
+    #[test]
+    fn selection_stays_on_the_edited_commit() {
+        let dir = std::env::temp_dir().join(format!("ghh-edit-select-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["config", "user.name", "t"]);
+        git(&dir, &["config", "user.email", "t@t"]);
+        git(&dir, &["config", "commit.gpgsign", "false"]);
+        commit(&dir, "a.txt", "root");
+        git(&dir, &["checkout", "-q", "-b", "topic"]);
+        commit(&dir, "t.txt", "topic 1");
+        commit(&dir, "t.txt", "topic 2");
+        git(&dir, &["checkout", "-q", "main"]);
+        commit(&dir, "b.txt", "main 2");
+        git(
+            &dir,
+            &["merge", "-q", "--no-ff", "-m", "merge topic", "topic"],
+        );
+
+        let mut app = App::new(dir.clone(), true);
+        app.initial_history_loader_rx = None;
+        app.history_loading = false;
+        let commits = git::load_commits(&dir, app.commit_sort).unwrap();
+        app.replace_commits(commits);
+        app.list_state.select(Some(0));
+        assert!(app.commits[0].is_merge);
+        app.toggle_collapse();
+
+        let root_idx = app.commits.len() - 1;
+        app.select_commit_idx(root_idx);
+        let row_while_collapsed = app.list_state.selected().unwrap();
+        app.enter_edit();
+        app.edit.as_mut().unwrap().message = "root, edited".into();
+        app.execute_save_edit();
+
+        assert_eq!(
+            app.selected_commit().map(|c| c.message.as_str()),
+            Some("root, edited"),
+            "{:?}",
+            app.status_message
+        );
+        assert_ne!(
+            app.list_state.selected(),
+            Some(row_while_collapsed),
+            "the reload expanded the merge: a kept row number is another commit"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

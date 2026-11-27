@@ -71,7 +71,7 @@ pub enum RefKind {
 }
 
 /// A branch/tag decoration shown next to a commit, gitk-style.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RefLabel {
     pub name: String,
     pub kind: RefKind,
@@ -95,7 +95,7 @@ pub enum StageState {
     Untracked,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileStatus {
     pub path: String,
     pub stage_state: StageState,

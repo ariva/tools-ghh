@@ -270,8 +270,9 @@ impl App {
             Ok(()) => match git::load_commits(&self.repo_path, self.commit_sort) {
                 Ok(commits) => {
                     self.replace_commits(commits);
-                    // Keep the cursor near where the squashed range used to be.
-                    let target_pos = self
+                    // The squashed commit sits where the newest commit of
+                    // the range was: n commits above the oldest one.
+                    let squashed_idx = self
                         .squash
                         .as_ref()
                         .map(|sq| {
@@ -285,12 +286,9 @@ impl App {
                             oldest.saturating_sub(n)
                         })
                         .unwrap_or(0);
-                    let pos = target_pos.min(self.visible.len().saturating_sub(1));
-                    self.list_state.select(if self.commits.is_empty() {
-                        None
-                    } else {
-                        Some(pos)
-                    });
+                    // A commit index, not a row: the "Uncommitted changes"
+                    // row and the reset collapse state shift the rows.
+                    self.select_commit_idx(squashed_idx.min(self.commits.len().saturating_sub(1)));
                     self.status_message = Some(format!(
                         "Squashed {} commit{} successfully.",
                         n,
@@ -312,5 +310,71 @@ impl App {
         }
         self.squash = None;
         self.nav.reset(Mode::Normal);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use std::process::Command;
+
+    fn git(dir: &Path, args: &[&str]) {
+        let ok = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(ok, "git {args:?} failed");
+    }
+
+    /// Squash started on line 1 ends on line 1, also with the "Uncommitted
+    /// changes" row above it: the target is a commit, not a row number.
+    #[test]
+    fn selection_returns_to_the_squashed_commit() {
+        let dir = std::env::temp_dir().join(format!("ghh-squash-select-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["config", "user.name", "t"]);
+        git(&dir, &["config", "user.email", "t@t"]);
+        git(&dir, &["config", "commit.gpgsign", "false"]);
+        for i in 1..=4 {
+            std::fs::write(dir.join("a.txt"), format!("{i}\n")).unwrap();
+            git(&dir, &["add", "a.txt"]);
+            git(&dir, &["commit", "-qm", &format!("commit {i}")]);
+        }
+        // Untracked file: row 0 is shown, rows and commit indices differ.
+        std::fs::write(dir.join("untracked.txt"), "x\n").unwrap();
+
+        let mut app = App::new(dir.clone(), true);
+        app.initial_history_loader_rx = None;
+        app.history_loading = false;
+        let commits = git::load_commits(&dir, app.commit_sort).unwrap();
+        app.replace_commits(commits);
+        app.set_working_tree(git::load_status(&dir).unwrap());
+        assert!(app.working_tree_row_shown());
+
+        // Line 1 (newest commit) is the base, line 2 is folded into it.
+        app.select_commit_idx(0);
+        assert_eq!(app.list_state.selected(), Some(1));
+        app.enter_squash();
+        let key = |code| KeyEvent::new(code, KeyModifiers::NONE);
+        app.handle_squash(key(KeyCode::Down));
+        app.handle_squash(key(KeyCode::Char(' ')));
+        let base = app.commits[0].hash.clone();
+        let folded = vec![app.commits[1].hash.clone()];
+        app.execute_squash_with_message(base, folded, "squashed".into());
+
+        assert_eq!(app.commits.len(), 3, "{:?}", app.status_message);
+        assert_eq!(app.list_state.selected(), Some(1), "back on line 1");
+        assert_eq!(
+            app.selected_commit().map(|c| c.message.as_str()),
+            Some("squashed")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

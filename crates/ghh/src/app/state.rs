@@ -75,6 +75,8 @@ pub struct App {
     pub squash: Option<SquashState>,
     pub stash: Option<crate::app::features::stash::StashState>,
     pub working_tree: crate::app::features::working_tree::WorkingTreeState,
+    /// Background readings of the repository and the "changed outside" notice.
+    pub repo_watch: crate::app::features::repo_watch::RepoWatchState,
     /// Scroll positions of the last drawn frame (see `DrawnScroll`).
     pub(crate) drawn_scroll: crate::app::layout::DrawnScroll,
     pub move_state: Option<crate::app::models::MoveState>,
@@ -185,6 +187,9 @@ impl App {
             move_state: None,
             stash: None,
             working_tree: Default::default(),
+            repo_watch: crate::app::features::repo_watch::RepoWatchState::new(
+                settings.resolved.watch_secs,
+            ),
             drawn_scroll: Default::default(),
             squash_msg: None,
             commit_msg_editor: None,
@@ -273,6 +278,7 @@ impl App {
                 },
             )),
             logs: self.settings.resolved.logs.clone(),
+            watch_secs: self.settings.resolved.watch_secs,
             splits: Some(self.splits),
         });
     }

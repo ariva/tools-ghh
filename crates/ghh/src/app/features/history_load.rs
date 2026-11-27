@@ -80,7 +80,7 @@ pub(crate) fn spawn_initial_history_loader(
 
 impl App {
     pub fn maybe_finish_history_load(&mut self) {
-        self.maybe_finish_working_tree_load();
+        self.maybe_poll_repo();
         if let Some(rx) = self.initial_history_loader_rx.take() {
             match rx.try_recv() {
                 Ok(Ok(HistoryBatch::FirstPage(commits, load_duration, timings))) => {
@@ -174,9 +174,19 @@ impl App {
             return;
         }
         self.commit_sort = self.commit_sort.toggled();
+        self.reload_history(format!(
+            "Reloading history in {} order...",
+            self.commit_sort.label()
+        ));
+    }
+
+    /// Throw the list away and load it again in the background, the way it
+    /// loads at startup; the selected commit is selected again when a batch
+    /// brings it back.
+    pub(crate) fn reload_history(&mut self, status: String) {
         let selected_hash = self.selected_commit().map(|commit| commit.hash.clone());
-        // Drop the whole list: the new order shares no prefix with the old one,
-        // so `apply_progressive_commits` must start from empty.
+        // Drop the whole list: the new one may share no prefix with the old
+        // one, so `apply_progressive_commits` must start from empty.
         self.commits.clear();
         self.reindex_commits();
         self.visible.clear();
@@ -184,18 +194,22 @@ impl App {
         self.collapsed_hidden_flags.clear();
         self.drill_stack.clear();
         self.reset_graph_cache();
+        // Search matches are positions in the list that just went away.
+        self.search.clear_matches();
+        self.search.filter_active = false;
         self.list_state = Default::default();
         self.history_total_count = None;
         self.history_loading = true;
         self.pending_reselect_hash = selected_hash;
+        self.head_hash = git::head_commit_hash(&self.repo_path);
+        self.ref_labels = git::load_ref_labels(&self.repo_path);
+        self.repo_watch.notice = None;
         self.initial_history_loader_rx = Some(spawn_initial_history_loader(
             self.repo_path.clone(),
             self.commit_sort,
         ));
-        self.status_message = Some(format!(
-            "Reloading history in {} order...",
-            self.commit_sort.label()
-        ));
+        self.refresh_working_tree();
+        self.status_message = Some(status);
     }
 
     /// After a reload the previously selected commit reappears in a different

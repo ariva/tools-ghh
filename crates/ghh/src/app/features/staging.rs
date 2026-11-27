@@ -66,33 +66,61 @@ impl StagingState {
 
     pub fn reload(&mut self, repo_path: &std::path::Path) {
         match git::load_status(repo_path) {
-            Ok(files) => {
-                let prev = self.list_state.selected();
-                // Staging a file moves it to another group of the list;
-                // the selection goes with the file, not with the row.
-                let was = self.selected_file().cloned();
-                let same_file = was.and_then(|was| {
-                    let at = |same_state: bool| {
-                        files.iter().position(|file| {
-                            file.path == was.path
-                                && (file.stage_state == was.stage_state) == same_state
-                        })
-                    };
-                    at(true).or_else(|| at(false))
-                });
-                self.files = files;
-                let new_sel = if self.files.is_empty() {
-                    None
-                } else {
-                    Some(same_file.unwrap_or(prev.unwrap_or(0).min(self.files.len() - 1)))
-                };
-                self.list_state.select(new_sel);
-            }
+            Ok(files) => self.set_files(files),
             Err(e) => {
                 self.status_msg = Some(format!("Reload error: {e}"));
             }
         }
         self.refresh_diff(repo_path);
+    }
+
+    /// Replace the list. The selection goes with the file, not with the
+    /// row: staging a file moves it to another group. A file that is gone
+    /// leaves the selection on its row.
+    fn set_files(&mut self, files: Vec<git::FileStatus>) {
+        let prev = self.list_state.selected();
+        let was = self.selected_file().cloned();
+        let same_file = was.and_then(|was| {
+            let at = |same_state: bool| {
+                files.iter().position(|file| {
+                    file.path == was.path && (file.stage_state == was.stage_state) == same_state
+                })
+            };
+            at(true).or_else(|| at(false))
+        });
+        self.files = files;
+        let new_sel = if self.files.is_empty() {
+            None
+        } else {
+            Some(same_file.unwrap_or(prev.unwrap_or(0).min(self.files.len() - 1)))
+        };
+        self.list_state.select(new_sel);
+    }
+
+    /// A background reading (`repo_watch.rs`) found the working tree
+    /// changed outside the app: take the new list and load the diff again.
+    /// Nothing moves when nothing changed; the diff keeps its scroll while
+    /// the same file stays selected.
+    pub(crate) fn apply_outside_change(
+        &mut self,
+        repo_path: &std::path::Path,
+        files: Vec<git::FileStatus>,
+        content_changed: bool,
+    ) {
+        let files_changed = files != self.files;
+        if !files_changed && !content_changed {
+            return;
+        }
+        let was = self.selected_file().cloned();
+        let scroll = self.diff_scroll;
+        if files_changed {
+            self.set_files(files);
+        }
+        self.refresh_diff(repo_path);
+        if self.selected_file() == was.as_ref() {
+            // Drawing stops the scroll at the end of a diff that got shorter.
+            self.diff_scroll = scroll;
+        }
     }
 
     pub fn selected_file(&self) -> Option<&git::FileStatus> {
@@ -171,6 +199,12 @@ impl App {
                     crate::app::layout::pane_page_step(diff),
                 )
             });
+        // These keys change or re-read the status themselves: a background
+        // reading started before them must not land after them and put the
+        // old list back under the cursor.
+        if matches!(key.code, KeyCode::Char(' ' | 'a' | 'u' | 'r')) {
+            self.repo_watch.discard_pending();
+        }
         let Some(staging) = self.staging.as_mut() else {
             self.nav.reset(Mode::Normal);
             return false;
@@ -609,6 +643,56 @@ mod tests {
         press(&mut app, KeyCode::BackTab);
         press(&mut app, KeyCode::Backspace);
         assert!(app.staging.is_none() && *app.mode() == Mode::Normal);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An outside change keeps the cursor on the same file, not on the same
+    /// row, and the diff scroll while that file stays selected.
+    #[test]
+    fn outside_change_keeps_the_cursor_on_its_file() {
+        let dir = std::env::temp_dir().join(format!("ghh-staging-watch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        git2::Repository::init(&dir).unwrap();
+        for name in ["b.txt", "c.txt"] {
+            std::fs::write(dir.join(name), "x\n").unwrap();
+        }
+        let mut staging = StagingState::new(&dir).unwrap();
+        staging.select_by(&dir, 1);
+        staging.diff_scroll = 4;
+        let path = |s: &StagingState| s.selected_file().map(|f| f.path.clone());
+        assert_eq!(path(&staging).as_deref(), Some("c.txt"));
+
+        // Nothing changed: nothing moves, the diff is not loaded again.
+        let same = staging.files.clone();
+        staging.diff_lines = vec!["kept".into()];
+        staging.apply_outside_change(&dir, same, false);
+        assert_eq!((staging.diff_lines.len(), staging.diff_scroll), (1, 4));
+
+        // A file appears above the cursor: the cursor goes down with c.txt.
+        std::fs::write(dir.join("a.txt"), "x\n").unwrap();
+        let files = git::load_status(&dir).unwrap();
+        staging.apply_outside_change(&dir, files, true);
+        assert_eq!(staging.files.len(), 3);
+        assert_eq!(path(&staging).as_deref(), Some("c.txt"));
+        assert_eq!(staging.diff_scroll, 4, "same file: scroll kept");
+        assert_ne!(
+            staging.diff_lines,
+            vec!["kept".to_string()],
+            "diff reloaded"
+        );
+
+        // The selected file goes away: the cursor stays on a valid row and
+        // the scroll starts over for the other file.
+        std::fs::remove_file(dir.join("c.txt")).unwrap();
+        let files = git::load_status(&dir).unwrap();
+        staging.apply_outside_change(&dir, files, true);
+        assert_eq!(path(&staging).as_deref(), Some("b.txt"));
+        assert_eq!(staging.diff_scroll, 0);
+
+        // Everything gone: empty list, no selection.
+        staging.apply_outside_change(&dir, Vec::new(), true);
+        assert!(staging.selected_file().is_none() && staging.diff_lines.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

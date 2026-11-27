@@ -1,5 +1,5 @@
 # GIT Handy Helper
-[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [FAQ command](#faq-at-the-command-line-ghh-faq) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Outside changes](#changes-made-outside-ghh-r) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [FAQ command](#faq-at-the-command-line-ghh-faq) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
 `ghh` (git handy helper) is a terminal UI for browsing, searching, analyzing and
 rewriting Git history: a commit graph with merged branches you can collapse or drill
@@ -129,7 +129,7 @@ the diff:
 ├ Files [3] ──────────┬ Diff: abc123 ─────┤
 │>All files           │ @@ -1,4 +1,6 @@   │
 │ M README.md +1 -0   │ +line             │
-│ M …routes.py +4 -2  │ -line             │
+│ M .../route.py +4 -2│ -line             │
 │ A notes.txt +9 -0   │                   │
 └─────────────────────┴───────────────────┘
 ```
@@ -172,9 +172,40 @@ numbered 0, above the newest commit:
 - It is not a commit: edit, squash, move, `m` and `M` do nothing on it, and
   search does not match it.
 - Shown in the top-level list only, not inside a drill view or a filtered list.
-- The status is read at startup, when you leave the staging or stash screen,
-  and after a commit or a history rewrite. A change made in another terminal
-  shows after one of those, not by itself.
+- It follows the working tree by itself: a file edited, staged or created in
+  another terminal or an editor shows within a few seconds, see
+  [Changes made outside ghh](#changes-made-outside-ghh-r).
+
+## Changes made outside ghh (`r`)
+
+While the commit list or the staging screen is shown, ghh looks at the
+repository every two seconds, in the background; keys and scrolling never wait
+for it.
+
+| What changed outside | What ghh does |
+|---|---|
+| files edited, staged, created, deleted | row 0, its Details and its diff update by themselves |
+| a branch or tag moved without HEAD moving (fetch, new tag), or a switch to another branch on the same commit | the labels update by themselves |
+| HEAD moved: a commit, a pull, a rebase, a switch to a branch on another commit | the status line says `Repository changed outside ghh. r: reload` (or `Switched to branch X outside ghh. r: reload`) and keeps saying it until you reload |
+
+- `r` (or `F5`) loads the list again, in the background like at startup; the
+  selected commit is selected again when it is still there. It works at any
+  time, not only when the notice is shown. Drill views, collapsed merges and
+  search matches are reset by a reload.
+- The list is not replaced under you: with a rebase running in another
+  terminal HEAD moves many times, and you decide when to look.
+- Staging follows the same way: its file list and the diff of the selected
+  file update by themselves. The cursor stays on its file, not on its row; when
+  that file is gone (reverted or committed outside) the cursor stays on the row
+  and the diff shows the file now there — look before pressing `Space`. `r`
+  there reads the status at once. A moved HEAD is not reported in staging; the
+  notice is on the commit list when you go back.
+- Not checked while another screen is open (stash, squash, move, edit, search,
+  the commit message editor); one check runs when you come back.
+- `watch_secs` in the settings sets the interval (default 2, at most 60);
+  `0` turns the checks off — `r` still works. On a very large working tree a
+  check that takes long makes ghh wait longer before the next one (ten times
+  the time the check took), see [docs/SETTINGS.md](docs/SETTINGS.md).
 
 ## Browse stashes (`S`)
 

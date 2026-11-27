@@ -59,6 +59,7 @@ layers, each knowing only the ones below it:
 | `git/history.rs` | loading commits (streamed `git rev-list`), commit details, diff and stats, edit (`modify_commit`), squash, file search |
 | `git/reorder.rs` | moving a commit: a scripted `git rebase -i`, continue, abort |
 | `git/staging.rs` | status, stage/unstage, commit, per-file diff, the working tree patch (libgit2) |
+| `git/watch.rs` | `repo_snapshot`: status, HEAD, branch and labels in one background reading |
 | `git/stash.rs` | stash list, patch, stat, apply/pop/drop (git command) |
 | `git/graph.rs` | classic lane engine; `compute_merge_points` (which merge brought a commit in) |
 | `git/tree_layout.rs` | gitk-style layout for the focused view |
@@ -69,7 +70,7 @@ layers, each knowing only the ones below it:
 | `app/models.rs` | `Mode`, `ConfirmAction`, `CommitListView`, `VisibleRow`, … |
 | `app/layout.rs` | pane regions, popup rectangles, hit tests |
 | `app/input/` | `dispatch.rs` (keys), `mouse.rs`, `selection.rs` (mouse text selection), `clipboard.rs` |
-| `app/features/` | one file per feature: `commit_list`, `history_load`, `search`, `edit`, `squash`, `move_commit`, `staging`, `working_tree`, `stash`, `context_menu`, `help` |
+| `app/features/` | one file per feature: `commit_list`, `history_load`, `search`, `edit`, `squash`, `move_commit`, `staging`, `working_tree`, `repo_watch`, `stash`, `context_menu`, `help` |
 | `app/editor/` | the vim-like multi-line editor shared by every message popup |
 | `ui/renderer.rs` | picks what to draw for the current mode |
 | `ui/screens/` | `commit_list`, `details`, `diff`, `staging`, `stash`, `debugger` |
@@ -125,6 +126,31 @@ hundreds of megabytes on a large repository for rows nobody looks at.
 
 Per-commit stats and diffs are also lazy: loaded when a commit is
 selected, not when it is listed.
+
+## Following the repository
+
+While the commit list or the staging screen is shown, `App::maybe_poll_repo`
+(`app/features/repo_watch.rs`) starts one background reading every
+`watch_secs` (`git::repo_snapshot`: libgit2 status, a size-and-mtime
+stamp of the changed files and the index, HEAD, branch, labels). The
+event loop picks the result up between frames and applies only what
+differs from the screen:
+
+| Differs | Applied |
+|---|---|
+| nothing | nothing |
+| file list | row 0 (`set_working_tree`); in staging its file list, cursor kept on the file (`apply_outside_change`) |
+| stamp only | the row 0 patch is dropped and loaded again, in staging the diff of the selected file; scroll kept |
+| labels, HEAD the same | `ref_labels` swapped |
+| HEAD | a notice on the status line; `r` runs `reload_history`, the same background loader as at startup |
+
+One reading at a time; the wait before the next is at least ten times
+what the reading took, so a large working tree is polled less often.
+An in-app change starts its own reading, which replaces a pending one;
+the staging keys that change the index discard a pending reading, so an
+older picture never lands on top of a newer one.
+No file-system watcher: polling needs no dependency and no per-directory
+watch.
 
 ## The commit graph
 

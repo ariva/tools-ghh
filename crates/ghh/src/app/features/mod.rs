@@ -4,6 +4,7 @@ pub mod edit;
 pub mod help;
 pub mod history_load;
 pub mod move_commit;
+pub mod repo_watch;
 pub mod search;
 pub mod squash;
 pub mod staging;

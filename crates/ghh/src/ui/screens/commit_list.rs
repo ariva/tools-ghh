@@ -2,7 +2,7 @@ use super::details::{render_details, render_status};
 use super::diff::{render_diff_window, scroll_label};
 use crate::app::{App, CommitListFocus, CommitListView, SquashState, VisibleRow};
 use crate::git;
-use crate::ui::helpers::truncate;
+use crate::ui::helpers::{fit_path, truncate};
 use ratatui::{
     Frame,
     layout::Rect,
@@ -484,7 +484,7 @@ fn render_diff_panels(
             (None, false) => " Diff ".to_string(),
         };
         let diff_title = match only_file.and_then(|index| diff_files.get(index)) {
-            Some(file) => format!("{diff_title}\u{b7} {} ", keep_path_end(&file.path, 30)),
+            Some(file) => format!("{diff_title}\u{b7} {} ", fit_path(&file.path, 30)),
             None => diff_title,
         };
         let diff_meta = scroll_label(
@@ -541,7 +541,7 @@ fn render_diff_panels(
                     } else {
                         Style::default()
                     };
-                    let path = format!("{} ", keep_path_end(&file.path, room));
+                    let path = format!("{} ", fit_path(&file.path, room));
                     // Search hits in the path, as in the other panes.
                     let path_spans = match info_terms {
                         Some(terms) => crate::ui::helpers::highlight_spans(
@@ -597,17 +597,6 @@ fn render_diff_panels(
             frame.render_stateful_widget(list, files_rect, &mut app.diff_files_state);
         }
     }
-}
-
-/// A path cut to `room` characters from the left: the file name is the part
-/// worth keeping in a narrow column.
-fn keep_path_end(path: &str, room: usize) -> String {
-    let length = path.chars().count();
-    if length <= room {
-        return path.to_string();
-    }
-    let kept: String = path.chars().skip(length - room.saturating_sub(1)).collect();
-    format!("\u{2026}{kept}")
 }
 
 pub fn render_normal(frame: &mut Frame, app: &mut App, area: Rect, squash_active: bool) {

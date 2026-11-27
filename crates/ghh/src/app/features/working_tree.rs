@@ -1,12 +1,11 @@
 //! The "Uncommitted changes" row on top of the commit list: what is staged,
-//! unstaged and untracked right now. Status is read on a background thread;
+//! unstaged and untracked right now. Status is read on a background thread
+//! (`repo_watch.rs`);
 //! the patch for the diff pane is built when the row is selected.
 
 use crate::app::App;
 use crate::app::models::{VisibleRow, parse_diff_files};
 use crate::git::{self, StageState};
-use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::thread;
 
 /// Key of the working tree patch in `commit_diff_cache` /
 /// `commit_diff_file_cache`, so the diff pane code is the same as for a
@@ -23,7 +22,6 @@ pub struct WorkingTreeState {
     pub untracked_from: usize,
     /// First line shown in the bottom Details pane.
     pub details_scroll: usize,
-    rx: Option<Receiver<Vec<git::FileStatus>>>,
 }
 
 impl WorkingTreeState {
@@ -66,28 +64,6 @@ impl WorkingTreeState {
 }
 
 impl App {
-    /// Read the working tree status again, off the UI thread. A newer call
-    /// replaces a pending one.
-    pub(crate) fn refresh_working_tree(&mut self) {
-        let repo_path = self.repo_path.clone();
-        let (tx, rx) = mpsc::channel();
-        thread::spawn(move || {
-            let _ = tx.send(git::load_status(&repo_path).unwrap_or_default());
-        });
-        self.working_tree.rx = Some(rx);
-    }
-
-    pub(crate) fn maybe_finish_working_tree_load(&mut self) {
-        let Some(rx) = self.working_tree.rx.take() else {
-            return;
-        };
-        match rx.try_recv() {
-            Ok(files) => self.set_working_tree(files),
-            Err(TryRecvError::Disconnected) => {}
-            Err(TryRecvError::Empty) => self.working_tree.rx = Some(rx),
-        }
-    }
-
     /// New status: add, drop or keep the row, and keep the selection on the
     /// commit it was on (the row sits above every commit).
     pub(crate) fn set_working_tree(&mut self, files: Vec<git::FileStatus>) {

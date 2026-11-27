@@ -473,7 +473,11 @@ impl App {
                 self.mark_perf_action("commit_list.action.enter_stash");
                 self.enter_stash()
             }
-            KeyCode::Char('r') => {
+            KeyCode::Char('r') | KeyCode::F(5) => {
+                self.mark_perf_action("commit_list.action.reload");
+                self.reload_repo()
+            }
+            KeyCode::Char('C') => {
                 if self.full_history_required("starting squash") {
                     return false;
                 }

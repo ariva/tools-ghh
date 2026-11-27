@@ -30,6 +30,7 @@ file, and `just check` fails on a number out of order.
 | 1.11 | How do I resize the panes? | drag a border with the mouse; the layout is saved on quit | [settings](SETTINGS.md) |
 | 1.12 | How do I copy a hash or a message? | `.` or right-click opens the pane's menu | |
 | 1.13 | How do I see the changes of one file of a commit only? | `v`, then click the file in the Files column left of the diff (or `Tab` to the column, `j`/`k`). `All files` on top shows everything again | [README](../README.md#changed-files-beside-the-diff) |
+| 1.14 | I committed, pulled or switched branch in another terminal. How do I see it? | `r` (or `F5`) reloads the list; the status line asks for it when HEAD moved. Edited files (row 0) and moved branch or tag labels show by themselves within a few seconds | [README](../README.md#changes-made-outside-ghh-r) |
 
 ## 2. Finding commits
 
@@ -54,7 +55,7 @@ force-push afterwards. Each asks before doing anything.
 | 3.1 | How do I fix a commit message? | `e`, `Enter` on the message, edit, save | |
 | 3.2 | How do I change the author or the date of a commit? | `e`, move to the field with `Tab`, type, `Enter` | |
 | 3.3 | How do I do that from a script? | `ghh --hash <hash> --mod-commit "text"` (also `--mod-author`, `--mod-email`, `--mod-date`); `-y` skips the question | |
-| 3.4 | How do I squash commits into one? | `r` on the commit to keep, `Space` on the ones to fold in, `Enter`, edit the message | |
+| 3.4 | How do I squash commits into one? | `C` on the commit to keep, `Space` on the ones to fold in, `Enter`, edit the message | |
 | 3.5 | Why does squash refuse my selection? | the commits must be a contiguous range on the current branch and none may be a merge | [architecture](ARCHITECTURE.md#rewriting-history) |
 | 3.6 | How do I reorder commits? | `E`, slide the commit with `↑`/`↓`, `Enter` | [README](../README.md#move-a-commit-up-or-down-e) |
 | 3.7 | A move stopped on a conflict. Now what? | fix the files, stage them, press `E`: continue or abort. Plain `git rebase --continue` / `--abort` works too | [README](../README.md#move-a-commit-up-or-down-e) |
@@ -76,6 +77,7 @@ force-push afterwards. Each asks before doing anything.
 | 4.9 | In what order are uncommitted files listed? | staged first, then unstaged, then untracked (`?`), by path inside each group; the same in staging, in row 0's Files column and Details, and in its diff. A file you stage moves up into the staged group; the cursor goes to the file that was under it | |
 | 4.10 | How do I move fast through a long file list or diff in staging? | `PgDn`/`PgUp` (or `p`/`P`) page the pane that has focus, `g`/`G` jump to its start and end; `Tab` switches between file list and diff | |
 | 4.11 | How do I leave the staging screen? | `Esc` or `Backspace` from the file list; from the diff either one goes to the file list first | |
+| 4.12 | I changed a file in my editor while staging was open. Do I have to reload? | no, the file list and the diff follow within a few seconds; the cursor stays on its file. `r` reads the status at once | [README](../README.md#changes-made-outside-ghh-r) |
 
 ## 5. Options and files
 
@@ -103,6 +105,7 @@ force-push afterwards. Each asks before doing anything.
 | 6.6 | My terminal is broken after ghh was killed. | run `reset` | |
 | 6.7 | "stash list changed outside the app" | another terminal added or removed a stash; press `r` and try again | |
 | 6.8 | The help popup is cut off at the bottom. | it scrolls when the terminal is too short for it: `j`/`k`, `PgDn`/`PgUp` (or `p`/`P`), `g`/`G`, or the mouse wheel; the title says so and the right border shows where you are | |
+| 6.9 | "Repository changed outside ghh. r: reload" does not go away. | HEAD is not the commit the list was loaded for; `r` reloads. It also goes away when HEAD is back where it was | [README](../README.md#changes-made-outside-ghh-r) |
 
 ## Keeping this file and the help popup in step
 

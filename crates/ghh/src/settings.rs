@@ -131,6 +131,10 @@ pub struct RepoSettings {
     pub logs: Option<LogsSetting>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub splits: Option<Splits>,
+    /// Seconds between checks for changes made outside the app while the
+    /// commit list is shown. 0 = never check. Default 2, at most 60.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub watch_secs: Option<u64>,
 }
 
 impl RepoSettings {
@@ -151,6 +155,7 @@ impl RepoSettings {
         take!(debug);
         take!(logs);
         take!(splits);
+        take!(watch_secs);
     }
 
     /// Debug screen minimum level, whichever form `debug:` was written in.
@@ -318,6 +323,9 @@ fn strip_inherited(mut entry: RepoSettings, defaults: &RepoSettings) -> RepoSett
     }
     if entry.splits == Some(defaults.splits.unwrap_or_default()) {
         entry.splits = None;
+    }
+    if entry.watch_secs == defaults.watch_secs {
+        entry.watch_secs = None;
     }
     if debug_norm(entry.debug.as_ref()) == debug_norm(defaults.debug.as_ref()) {
         entry.debug = None;
@@ -661,6 +669,11 @@ const EXAMPLE_BODY: &str = r#"// Reference for ~/.config/ghh/ghh-settings.json a
         details_height: 8,   // details footer height in rows (3-20)
         files_pct: 30,       // files column width, % of diff column (15-85)
       },
+
+      // Seconds between checks for changes made outside ghh (files edited,
+      // commits, branch switch) while the commit list is shown. The check
+      // runs in the background. 0 = never check. Default: 2, at most 60.
+      watch_secs: 2,
     },
   },
 }

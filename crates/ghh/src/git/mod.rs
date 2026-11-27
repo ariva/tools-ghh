@@ -7,6 +7,7 @@ pub mod reorder;
 pub mod staging;
 pub mod stash;
 pub mod tree_layout;
+pub mod watch;
 
 pub use error::{Error, Result};
 pub use graph::{compute_merge_points, find_branch_commit_indices};
@@ -28,5 +29,6 @@ pub use staging::{
 };
 pub use stash::{StashEntry, list_stashes, stash_apply, stash_drop, stash_patch, stash_stat};
 pub use tree_layout::{TreeLaneEngine, TreeLayout};
+pub use watch::{RepoSnapshot, repo_snapshot};
 
 pub(crate) use history::has_stable_commit_prefix;

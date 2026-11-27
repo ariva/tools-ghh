@@ -14,7 +14,7 @@ use crossterm::{
     cursor::Show,
     event::{
         self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-        Event,
+        Event, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -346,6 +346,7 @@ fn run_tui(
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
         let mut stdout = io::stdout();
+        disable_keyboard_enhancement(&mut stdout);
         let _ = execute!(
             stdout,
             LeaveAlternateScreen,
@@ -366,6 +367,12 @@ fn run_tui(
         EnableMouseCapture,
         EnableBracketedPaste
     )?;
+    // Not in a replayed session (`--auto`): those run headless (tests,
+    // benchmarks), and the question below waits two seconds for a terminal
+    // that is not there to answer.
+    if automation_cmds.is_empty() {
+        enable_keyboard_enhancement(&mut stdout);
+    }
     let backend = CrosstermBackend::new(io::BufWriter::with_capacity(1 << 19, stdout));
     let mut terminal = Terminal::new(backend)?;
     let restore_guard = TerminalRestoreGuard::new();
@@ -692,11 +699,40 @@ fn spawn_hang_watchdog(
     });
 }
 
+/// True while the kitty keyboard protocol is on; every exit path (normal,
+/// panic, hang watchdog, guard drop) turns it off through
+/// [`disable_keyboard_enhancement`], or the shell would get escape codes
+/// for Esc and Ctrl keys.
+static KEYBOARD_ENHANCED: AtomicBool = AtomicBool::new(false);
+
+/// Ask the terminal to report modified keys unambiguously, when it can:
+/// only then are Ctrl+Shift+Enter (message editor) and Shift+Enter (`M`
+/// drill) different from Enter. A terminal without the protocol is left
+/// alone. The support
+/// question is answered at once by a real terminal; crossterm gives up
+/// after two seconds when nothing answers.
+fn enable_keyboard_enhancement(out: &mut impl Write) {
+    if !crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false) {
+        return;
+    }
+    let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
+    if execute!(out, PushKeyboardEnhancementFlags(flags)).is_ok() {
+        KEYBOARD_ENHANCED.store(true, Ordering::Relaxed);
+    }
+}
+
+fn disable_keyboard_enhancement(out: &mut impl Write) {
+    if KEYBOARD_ENHANCED.swap(false, Ordering::Relaxed) {
+        let _ = execute!(out, PopKeyboardEnhancementFlags);
+    }
+}
+
 /// Restore the terminal from raw/alternate-screen mode and exit immediately.
 /// Used only by the hang watchdog, where the normal restore path is stuck.
 fn force_restore_and_exit(reason: &str) -> ! {
     let _ = disable_raw_mode();
     let mut stdout = io::stdout();
+    disable_keyboard_enhancement(&mut stdout);
     let _ = execute!(
         stdout,
         LeaveAlternateScreen,
@@ -732,6 +768,7 @@ impl TerminalRestoreGuard {
             return Ok(());
         }
         disable_raw_mode()?;
+        disable_keyboard_enhancement(terminal.backend_mut());
         execute!(
             terminal.backend_mut(),
             LeaveAlternateScreen,
@@ -751,6 +788,7 @@ impl Drop for TerminalRestoreGuard {
         }
         let _ = disable_raw_mode();
         let mut stdout = io::stdout();
+        disable_keyboard_enhancement(&mut stdout);
         let _ = execute!(
             stdout,
             LeaveAlternateScreen,

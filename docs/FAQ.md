@@ -55,7 +55,7 @@ force-push afterwards. Each asks before doing anything.
 | 3.1 | How do I fix a commit message? | `e`, `Enter` on the message, edit, save | |
 | 3.2 | How do I change the author or the date of a commit? | `e`, move to the field with `Tab`, type, `Enter` | |
 | 3.3 | How do I do that from a script? | `ghh --hash <hash> --mod-commit "text"` (also `--mod-author`, `--mod-email`, `--mod-date`); `-y` skips the question | |
-| 3.4 | How do I squash commits into one? | `C` on the commit to keep, `Space` on the ones to fold in, `Enter`, edit the message | |
+| 3.4 | How do I squash commits into one? | `C` on the commit to keep, `Space` on the ones to fold in, `Enter`; the combined message opens in view mode: `Enter` saves it, `i` edits it first (then `Ctrl+Shift+Enter` or `Ctrl+S` saves) | |
 | 3.5 | Why does squash refuse my selection? | the commits must be a contiguous range on the current branch and none may be a merge | [architecture](ARCHITECTURE.md#rewriting-history) |
 | 3.6 | How do I reorder commits? | `E`, slide the commit with `↑`/`↓`, `Enter` | [README](../README.md#move-a-commit-up-or-down-e) |
 | 3.7 | A move stopped on a conflict. Now what? | fix the files, stage them, press `E`: continue or abort. Plain `git rebase --continue` / `--abort` works too | [README](../README.md#move-a-commit-up-or-down-e) |
@@ -66,9 +66,9 @@ force-push afterwards. Each asks before doing anything.
 
 | # | Question | Answer | More |
 |---|---|---|---|
-| 4.1 | How do I commit my changes? | `s`, `Space` on each file (it moves on to the next one; `a` stages all), `Enter`, type the message in the editor, Save. The line `Enter: write the message and commit` under the panes shows when something is staged | |
+| 4.1 | How do I commit my changes? | `s`, `Space` on each file (it moves on to the next one; `a` stages all), `Enter`, type the message in the editor, `Ctrl+Shift+Enter` (or `Ctrl+S`) saves. The line `Enter: write the message and commit` under the panes shows when something is staged | |
 | 4.2 | How do I unstage a file? | select it in the staged group on top and press `Space`; `u` unstages everything | |
-| 4.3 | How do I write a longer commit message? | the editor `Enter` opens in staging takes as many lines as you like; first line is the subject | |
+| 4.3 | How do I write a longer commit message? | the editor `Enter` opens in staging takes as many lines as you like: `Enter` adds a line, `Ctrl+Shift+Enter` or `Ctrl+S` saves; first line is the subject | [README](../README.md#message-editor) |
 | 4.4 | Can I stage part of a file? | no, whole files only | [not built](ARCHITECTURE.md#not-built) |
 | 4.5 | How do I look at my stashes? | `S` | [README](../README.md#browse-stashes-s) |
 | 4.6 | How do I bring a stash back? | in the stash screen: `a` applies and keeps it, `p` applies and removes it | [README](../README.md#browse-stashes-s) |
@@ -106,6 +106,7 @@ force-push afterwards. Each asks before doing anything.
 | 6.7 | "stash list changed outside the app" | another terminal added or removed a stash; press `r` and try again | |
 | 6.8 | The help popup is cut off at the bottom. | it scrolls when the terminal is too short for it: `j`/`k`, `PgDn`/`PgUp` (or `p`/`P`), `g`/`G`, or the mouse wheel; the title says so and the right border shows where you are | |
 | 6.9 | "Repository changed outside ghh. r: reload" does not go away. | HEAD is not the commit the list was loaded for; `r` reloads. It also goes away when HEAD is back where it was | [README](../README.md#changes-made-outside-ghh-r) |
+| 6.10 | `Ctrl+Shift+Enter` in the message editor adds a line instead of saving. | the terminal does not tell `Ctrl+Shift+Enter` from `Enter`; use `Ctrl+S`, or `Esc` and then `Enter` | [README](../README.md#message-editor) |
 
 ## Keeping this file and the help popup in step
 

@@ -1,5 +1,5 @@
 # GIT Handy Helper
-[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Outside changes](#changes-made-outside-ghh-r) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [FAQ command](#faq-at-the-command-line-ghh-faq) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
+[Install](#install) · [Support](#buy-me-pizzacoffeetea) · [Find PR merge](#find-the-pr-merge-of-any-commit-m) · [Move commit](#move-a-commit-up-or-down-e) · [Files column](#changed-files-beside-the-diff) · [Uncommitted changes](#uncommitted-changes-row-0) · [Outside changes](#changes-made-outside-ghh-r) · [Message editor](#message-editor) · [Stashes](#browse-stashes-s) · [Search](#search-clearing-an-input-field) · [FAQ command](#faq-at-the-command-line-ghh-faq) · [Documentation](#documentation) · [Logging](#logging---logs) · [Automation](#automation) · [License](#license)
 
 `ghh` (git handy helper) is a terminal UI for browsing, searching, analyzing and
 rewriting Git history: a commit graph with merged branches you can collapse or drill
@@ -206,6 +206,33 @@ for it.
   `0` turns the checks off — `r` still works. On a very large working tree a
   check that takes long makes ghh wait longer before the next one (ten times
   the time the check took), see [docs/SETTINGS.md](docs/SETTINGS.md).
+
+## Message editor
+
+One editor for the commit message (staging), the message in Edit Commit and
+the squash message. The first two open ready to type (`[INSERT]` in the
+title). The squash message opens in view mode (`[VIEW ONLY]`): the combined
+message is ready, `Enter` saves it, `i` edits it. The line above the buttons
+names the keys.
+
+| Key | Edit mode `[INSERT]` | View mode `[VIEW ONLY]` |
+|---|---|---|
+| `Enter` | new line | execute the selected button |
+| `Ctrl+Shift+Enter`, `Ctrl+S` | execute the selected button | `Ctrl+S` does |
+| `Tab`, `Shift+Tab` | switch `[ SAVE ]` / `[ CANCEL ]` | same |
+| `Esc` | to view mode | cancel; asks first when the text changed |
+| `Ctrl+V`, paste | insert, line breaks kept | same, switches to edit mode |
+| `i` `a` `A` `o` `O` `dd` `x` `h` `j` `k` `l` `0` `$` | typed as text | vim keys |
+
+- Save does not rewrite anything yet: commit, edit and squash each ask in
+  their confirm popup afterwards.
+- A click on a button executes it; a click outside the popup is `Esc`.
+- `Ctrl+Shift+Enter` needs a terminal that tells it from `Enter`: one with the
+  kitty keyboard protocol (kitty, Ghostty, foot, Alacritty, for example;
+  WezTerm when enabled in its settings). ghh turns the protocol on when the
+  terminal reports it. In a terminal without it (macOS Terminal.app, GNOME
+  Terminal, tmux without `extended-keys`) `Ctrl+Shift+Enter` arrives as `Enter`
+  and adds a line: use `Ctrl+S`, or `Esc` and then `Enter`.
 
 ## Browse stashes (`S`)
 

@@ -4,6 +4,11 @@
 //! use identical vim-style bindings. This module implements them once; each
 //! mode only decides what to do with the few keys that leave the editor
 //! (submit / escape / quit / button focus), reported as [`EditorKeyOutcome`].
+//!
+//! Editors open in insert mode. There Enter adds a line and Ctrl+Shift+Enter
+//! (or Ctrl+S, for terminals that cannot tell Ctrl+Shift+Enter from Enter)
+//! executes the selected button; Esc goes to the view-only command mode,
+//! where Enter executes the button.
 
 use crate::app::editor::MultilineEditor;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -19,9 +24,10 @@ pub enum EditorKeyOutcome {
     /// Esc in command mode — the caller decides between discarding and
     /// asking for confirmation when there are unsaved changes.
     Escape,
-    /// Enter or Ctrl+S in command mode — the caller saves/continues.
+    /// Execute the selected button: Ctrl+Shift+Enter or Ctrl+S in insert mode,
+    /// Enter or Ctrl+S in command mode.
     Submit,
-    /// Tab/BackTab in command mode — the caller may move Save/Cancel focus.
+    /// Tab/BackTab in either mode — the caller moves the Save/Cancel focus.
     SwitchButton,
 }
 
@@ -38,6 +44,18 @@ fn handle_insert_mode(editor: &mut MultilineEditor, key: KeyEvent) -> EditorKeyO
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
     match key.code {
         KeyCode::Esc => editor.exit_insert_mode(),
+        // Seen as Ctrl+Shift+Enter only where the terminal reports it (kitty
+        // keyboard protocol, turned on in main.rs); elsewhere it arrives as
+        // a plain Enter and adds a line, and Ctrl+S is the way to submit.
+        KeyCode::Enter
+            if key
+                .modifiers
+                .contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT) =>
+        {
+            return EditorKeyOutcome::Submit;
+        }
+        KeyCode::Char('s') if ctrl => return EditorKeyOutcome::Submit,
+        KeyCode::Tab | KeyCode::BackTab => return EditorKeyOutcome::SwitchButton,
         KeyCode::Char(c)
             if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT =>
         {
@@ -197,6 +215,52 @@ mod tests {
             handle_editor_key(&mut editor, key(KeyCode::Tab)),
             EditorKeyOutcome::SwitchButton
         );
+    }
+
+    #[test]
+    fn insert_mode_enter_adds_a_line_and_ctrl_shift_enter_submits() {
+        let mut editor = MultilineEditor::new("ab");
+        editor.insert_mode = true;
+        assert_eq!(
+            handle_editor_key(&mut editor, key(KeyCode::Enter)),
+            EditorKeyOutcome::Handled
+        );
+        assert_eq!(editor.lines.len(), 2, "Enter adds a line");
+        // Shift alone is not the execute key: it adds a line like Enter.
+        assert_eq!(
+            handle_editor_key(
+                &mut editor,
+                KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT)
+            ),
+            EditorKeyOutcome::Handled
+        );
+        assert_eq!(editor.lines.len(), 3);
+        assert_eq!(
+            handle_editor_key(
+                &mut editor,
+                KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+            ),
+            EditorKeyOutcome::Submit
+        );
+        assert_eq!(
+            handle_editor_key(&mut editor, ctrl('s')),
+            EditorKeyOutcome::Submit
+        );
+        assert_eq!(editor.lines.len(), 3, "submitting adds nothing");
+        assert!(editor.insert_mode);
+    }
+
+    #[test]
+    fn insert_mode_tab_switches_the_button() {
+        let mut editor = MultilineEditor::new("ab");
+        editor.insert_mode = true;
+        for code in [KeyCode::Tab, KeyCode::BackTab] {
+            assert_eq!(
+                handle_editor_key(&mut editor, key(code)),
+                EditorKeyOutcome::SwitchButton
+            );
+        }
+        assert_eq!(editor.text(), "ab", "Tab types nothing");
     }
 
     #[test]

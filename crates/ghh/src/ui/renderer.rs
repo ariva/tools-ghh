@@ -224,8 +224,7 @@ fn render_frame(frame: &mut Frame, app: &mut App) {
             &sm.editor,
             "Edit Squash Message",
             area,
-            true,
-            false,
+            app.editor_save_selected,
             app.multiline_editor_changed(),
         );
     }
@@ -240,7 +239,6 @@ fn render_frame(frame: &mut Frame, app: &mut App) {
             "Edit Commit Message",
             area,
             app.editor_save_selected,
-            true,
             app.multiline_editor_changed(),
         );
     }
@@ -266,7 +264,6 @@ fn render_frame(frame: &mut Frame, app: &mut App) {
             "Edit Message",
             area,
             app.editor_save_selected,
-            true,
             app.multiline_editor_changed(),
         );
     }

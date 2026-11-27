@@ -1,3 +1,7 @@
+//! The message editor popup shared by the staging commit message, the Edit
+//! Commit message and the squash message: text, a key hint line, and the
+//! Save / Cancel buttons.
+
 use crate::app::editor::MultilineEditor;
 use ratatui::{
     Frame,
@@ -13,11 +17,9 @@ pub fn render_multiline_editor_popup(
     title: &str,
     area: Rect,
     save_selected: bool,
-    show_actions: bool,
     changed: bool,
 ) {
-    let popup =
-        crate::app::layout::multiline_editor_popup_rect_in(editor.lines.len(), show_actions, area);
+    let popup = crate::app::layout::multiline_editor_popup_rect_in(editor.lines.len(), area);
     frame.render_widget(Clear, popup);
 
     let mode_label = if editor.insert_mode {
@@ -44,14 +46,18 @@ pub fn render_multiline_editor_popup(
     };
     frame.render_widget(block, popup);
 
-    let hint_y = inner.y
-        + inner
-            .height
-            .saturating_sub(if show_actions { 3 } else { 2 });
+    let hint_y = inner.y + inner.height.saturating_sub(3);
+    // Names the button the key would execute, so the line is true whichever
+    // one Tab left selected.
+    let button = if save_selected { "Save" } else { "Cancel" };
     let hint = if editor.insert_mode {
         Paragraph::new(Line::from(vec![
             Span::styled(" Enter", Style::default().fg(Color::Green)),
-            Span::raw(":newline  "),
+            Span::raw(":new line  "),
+            Span::styled("Ctrl+Shift+Enter", Style::default().fg(Color::Green)),
+            Span::raw(format!(" or Ctrl+S:{button}  ")),
+            Span::styled("Tab", Style::default().fg(Color::Cyan)),
+            Span::raw(":Save/Cancel  "),
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
             Span::raw(":view only"),
         ]))
@@ -66,7 +72,9 @@ pub fn render_multiline_editor_popup(
             Span::styled("dd", Style::default().fg(Color::Red)),
             Span::raw(":del line  "),
             Span::styled("Enter", Style::default().fg(Color::Green)),
-            Span::raw(":confirm  "),
+            Span::raw(format!(":{button}  ")),
+            Span::styled("Tab", Style::default().fg(Color::Cyan)),
+            Span::raw(":Save/Cancel  "),
             Span::styled("Esc", Style::default().fg(Color::DarkGray)),
             Span::raw(":cancel"),
         ]))
@@ -81,9 +89,7 @@ pub fn render_multiline_editor_popup(
         },
     );
 
-    let content_height = inner
-        .height
-        .saturating_sub(if show_actions { 3 } else { 2 }) as usize;
+    let content_height = inner.height.saturating_sub(3) as usize;
     let content_width = inner.width as usize;
     let visible_start = editor.cursor_line.saturating_sub(content_height / 2);
     let visible_end = (visible_start + content_height).min(editor.lines.len());
@@ -164,37 +170,35 @@ pub fn render_multiline_editor_popup(
         }
     }
 
-    if show_actions {
-        let button_y = inner.y + inner.height.saturating_sub(1);
-        let save_style = if save_selected {
-            Style::default().fg(Color::Black).bg(Color::Green)
-        } else {
-            Style::default().fg(Color::Green)
-        };
-        let cancel_style = if save_selected {
-            Style::default().fg(Color::Red)
-        } else {
-            Style::default().fg(Color::Black).bg(Color::Red)
-        };
-        frame.render_widget(
-            Paragraph::new(" [ SAVE ] ").style(save_style),
-            Rect {
-                x: inner.x,
-                y: button_y,
-                width: 12,
-                height: 1,
-            },
-        );
-        frame.render_widget(
-            Paragraph::new(" [ CANCEL ] ").style(cancel_style),
-            Rect {
-                x: inner.x + 14,
-                y: button_y,
-                width: 12,
-                height: 1,
-            },
-        );
-    }
+    let button_y = inner.y + inner.height.saturating_sub(1);
+    let save_style = if save_selected {
+        Style::default().fg(Color::Black).bg(Color::Green)
+    } else {
+        Style::default().fg(Color::Green)
+    };
+    let cancel_style = if save_selected {
+        Style::default().fg(Color::Red)
+    } else {
+        Style::default().fg(Color::Black).bg(Color::Red)
+    };
+    frame.render_widget(
+        Paragraph::new(" [ SAVE ] ").style(save_style),
+        Rect {
+            x: inner.x,
+            y: button_y,
+            width: 12,
+            height: 1,
+        },
+    );
+    frame.render_widget(
+        Paragraph::new(" [ CANCEL ] ").style(cancel_style),
+        Rect {
+            x: inner.x + 14,
+            y: button_y,
+            width: 12,
+            height: 1,
+        },
+    );
 }
 
 fn horizontal_view_start(cursor_col: usize, content_width: usize) -> usize {
@@ -204,4 +208,60 @@ fn horizontal_view_start(cursor_col: usize, content_width: usize) -> usize {
 
 fn visible_chars(chars: &[char], start: usize, width: usize) -> Vec<char> {
     chars.iter().skip(start).take(width).copied().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render_multiline_editor_popup;
+    use crate::app::editor::MultilineEditor;
+    use ratatui::{Terminal, backend::TestBackend, layout::Rect};
+
+    fn draw(editor: &MultilineEditor, save_selected: bool) -> String {
+        let area = Rect::new(0, 0, 120, 24);
+        let mut terminal = Terminal::new(TestBackend::new(120, 24)).unwrap();
+        terminal
+            .draw(|frame| {
+                render_multiline_editor_popup(frame, editor, "Edit", area, save_selected, false)
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        (0..24u16)
+            .map(|y| {
+                (0..120)
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect::<String>()
+                    + "\n"
+            })
+            .collect()
+    }
+
+    /// Edit mode says how to add a line, execute the button and switch it;
+    /// the button named is the selected one.
+    #[test]
+    fn edit_mode_hint_names_the_keys() {
+        let mut editor = MultilineEditor::new("text");
+        editor.insert_mode = true;
+        let screen = draw(&editor, true);
+        for part in [
+            "[INSERT]",
+            "Enter:new line",
+            "Ctrl+Shift+Enter or Ctrl+S:Save",
+            "Tab:Save/Cancel",
+            "Esc:view only",
+            "[ SAVE ]",
+            "[ CANCEL ]",
+        ] {
+            assert!(screen.contains(part), "{part:?} missing in\n{screen}");
+        }
+        assert!(draw(&editor, false).contains("Ctrl+Shift+Enter or Ctrl+S:Cancel"));
+    }
+
+    #[test]
+    fn view_mode_hint_keeps_enter_for_the_button() {
+        let editor = MultilineEditor::new("text");
+        let screen = draw(&editor, true);
+        for part in ["[VIEW ONLY]", "Enter:Save", "Tab:Save/Cancel", "Esc:cancel"] {
+            assert!(screen.contains(part), "{part:?} missing in\n{screen}");
+        }
+    }
 }

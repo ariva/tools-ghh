@@ -30,6 +30,8 @@ impl SquashMessageState {
             .trim()
             .to_string();
         Self {
+            // Opens in view mode, unlike the other message editors: the
+            // combined message is usually right as it is, so Enter saves it.
             editor: MultilineEditor::from_lines(initial_lines),
             base_hash,
             squash_hashes,
@@ -163,6 +165,7 @@ impl App {
             squash_hashes,
             initial_lines,
         ));
+        self.editor_save_selected = true;
         self.nav.push(Mode::SquashMessage);
     }
 
@@ -191,19 +194,13 @@ impl App {
         match handle_editor_key(&mut state.editor, key) {
             EditorKeyOutcome::Handled => {}
             EditorKeyOutcome::Quit => return true,
-            EditorKeyOutcome::Escape => {
-                if self.squash_message_has_changes() {
-                    self.nav.push(Mode::Confirm(
-                        ConfirmAction::DiscardSquashMessageEditor,
-                        false,
-                    ));
-                } else {
-                    self.discard_squash_message_editor();
-                }
+            EditorKeyOutcome::Escape => self.cancel_multiline_editor(),
+            EditorKeyOutcome::Submit => {
+                self.activate_multiline_editor_action();
             }
-            EditorKeyOutcome::Submit => self.squash_msg_confirm(),
-            // The squash editor has no Save/Cancel buttons.
-            EditorKeyOutcome::SwitchButton => {}
+            EditorKeyOutcome::SwitchButton => {
+                self.editor_save_selected = !self.editor_save_selected;
+            }
         }
         false
     }
@@ -376,5 +373,91 @@ mod tests {
             Some("squashed")
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The squash editor behind its popup, with nothing to squash for real.
+    fn app_in_squash_editor(name: &str) -> App {
+        let dir = std::env::temp_dir().join(format!("ghh-squash-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut app = App::new(dir, false);
+        app.squash_msg = Some(SquashMessageState::new(
+            "base".into(),
+            vec!["folded".into()],
+            vec!["message".into()],
+        ));
+        app.editor_save_selected = true;
+        app.nav.push(Mode::Squash);
+        app.nav.push(Mode::SquashMessage);
+        app
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    fn ctrl_shift_enter() -> KeyEvent {
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+    }
+
+    /// Opens in view mode; `i` starts editing, where Enter adds a line and
+    /// Ctrl+Shift+Enter executes Save, which asks before it rewrites history.
+    #[test]
+    fn squash_editor_enter_adds_a_line_and_ctrl_shift_enter_saves() {
+        let mut app = app_in_squash_editor("save");
+        fn editor(app: &App) -> &MultilineEditor {
+            &app.squash_msg.as_ref().unwrap().editor
+        }
+        assert!(!editor(&app).insert_mode, "opens in view mode");
+        app.handle_squash_message(key(KeyCode::Char('i')));
+        assert!(editor(&app).insert_mode);
+        app.handle_squash_message(key(KeyCode::Enter));
+        assert_eq!(editor(&app).lines.len(), 2);
+        assert!(matches!(app.mode(), Mode::SquashMessage));
+
+        app.handle_squash_message(ctrl_shift_enter());
+        assert!(
+            matches!(
+                app.mode(),
+                Mode::Confirm(ConfirmAction::Squash { .. }, true)
+            ),
+            "Save goes to the confirm popup"
+        );
+    }
+
+    /// Tab moves to Cancel; executing it closes an unchanged editor and
+    /// asks first when the text was changed.
+    #[test]
+    fn squash_editor_tab_selects_cancel() {
+        let mut app = app_in_squash_editor("cancel");
+        app.handle_squash_message(key(KeyCode::Tab));
+        assert!(!app.editor_save_selected);
+        app.handle_squash_message(ctrl_shift_enter());
+        assert!(app.squash_msg.is_none(), "unchanged: closed at once");
+        assert!(matches!(app.mode(), Mode::Squash));
+
+        let mut app = app_in_squash_editor("cancel-changed");
+        app.handle_squash_message(key(KeyCode::Char('i')));
+        app.handle_squash_message(key(KeyCode::Char('x')));
+        app.handle_squash_message(key(KeyCode::Tab));
+        app.handle_squash_message(ctrl_shift_enter());
+        assert!(
+            matches!(
+                app.mode(),
+                Mode::Confirm(ConfirmAction::DiscardSquashMessageEditor, false)
+            ),
+            "changed text: asks, default No"
+        );
+        assert!(app.squash_msg.is_some());
+    }
+
+    /// As opened, in view mode: Enter executes Save without editing.
+    #[test]
+    fn squash_editor_view_mode_enter_executes() {
+        let mut app = app_in_squash_editor("view");
+        app.handle_squash_message(key(KeyCode::Enter));
+        assert!(matches!(
+            app.mode(),
+            Mode::Confirm(ConfirmAction::Squash { .. }, true)
+        ));
     }
 }

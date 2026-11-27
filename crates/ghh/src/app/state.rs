@@ -430,25 +430,37 @@ impl App {
                     self.discard_commit_field_editor();
                 }
             }
+            Mode::SquashMessage => {
+                if self.squash_message_has_changes() {
+                    self.nav.push(Mode::Confirm(
+                        ConfirmAction::DiscardSquashMessageEditor,
+                        false,
+                    ));
+                } else {
+                    self.discard_squash_message_editor();
+                }
+            }
             _ => {}
         }
     }
 
-    pub(crate) fn discard_multiline_editor(&mut self) {
+    /// The editor of the open message popup, whichever of the three it is.
+    fn multiline_editor_mut(&mut self) -> Option<&mut MultilineEditor> {
         match self.mode() {
-            Mode::EditCommitMessage => self.discard_commit_message_editor(),
-            Mode::EditCommitField => self.discard_commit_field_editor(),
-            _ => {}
+            Mode::SquashMessage => self.squash_msg.as_mut().map(|state| &mut state.editor),
+            _ => self.commit_msg_editor.as_mut(),
         }
     }
 
+    /// A click outside the popup = Esc: insert mode to view mode first,
+    /// then cancel (asking when the text changed).
     pub(crate) fn escape_multiline_editor(&mut self) {
-        if let Some(editor) = self.commit_msg_editor.as_mut()
+        if let Some(editor) = self.multiline_editor_mut()
             && editor.insert_mode
         {
             editor.exit_insert_mode();
         } else {
-            self.discard_multiline_editor();
+            self.cancel_multiline_editor();
         }
     }
 
@@ -457,6 +469,7 @@ impl App {
             match self.mode() {
                 Mode::EditCommitMessage => return self.commit_editor_confirm(),
                 Mode::EditCommitField => self.confirm_commit_field_editor(),
+                Mode::SquashMessage => self.squash_msg_confirm(),
                 _ => {}
             }
         } else {

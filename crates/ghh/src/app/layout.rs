@@ -236,10 +236,6 @@ impl App {
     }
 
     pub fn multiline_editor_button_rects(&self) -> Option<(Rect, Rect, Rect)> {
-        self.commit_msg_editor.as_ref()?;
-        if !matches!(self.mode(), Mode::EditCommitMessage | Mode::EditCommitField) {
-            return None;
-        }
         let popup = self.multiline_editor_popup_rect()?;
         let inner = Rect {
             x: popup.x + 1,
@@ -261,12 +257,7 @@ impl App {
             Mode::SquashMessage => self.squash_msg.as_ref()?.editor.lines.len(),
             _ => return None,
         };
-        let actions = matches!(self.mode(), Mode::EditCommitMessage | Mode::EditCommitField);
-        Some(multiline_editor_popup_rect_in(
-            lines,
-            actions,
-            Self::screen_area()?,
-        ))
+        Some(multiline_editor_popup_rect_in(lines, Self::screen_area()?))
     }
 
     pub fn confirm_popup_button_rects(&self) -> Option<(Rect, Rect, Rect)> {
@@ -1061,10 +1052,8 @@ pub fn confirm_popup_rect_in(dangerous: bool, area: Rect) -> Rect {
 
 /// Multiline editor popup rect (commit/squash message editors) — ONE source
 /// for renderer and hit-testing.
-pub fn multiline_editor_popup_rect_in(lines: usize, show_actions: bool, area: Rect) -> Rect {
-    let height = (lines as u16 + if show_actions { 8 } else { 6 })
-        .min(area.height.saturating_sub(2))
-        .max(8);
+pub fn multiline_editor_popup_rect_in(lines: usize, area: Rect) -> Rect {
+    let height = (lines as u16 + 8).min(area.height.saturating_sub(2)).max(8);
     crate::ui::helpers::centered_rect(80, height, area)
 }
 

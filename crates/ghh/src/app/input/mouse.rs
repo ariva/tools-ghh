@@ -19,7 +19,12 @@ impl App {
         if self.show_help {
             return self.mouse_in_help(mouse);
         }
-        if left_click && matches!(self.mode(), Mode::EditCommitMessage | Mode::EditCommitField) {
+        if left_click
+            && matches!(
+                self.mode(),
+                Mode::EditCommitMessage | Mode::EditCommitField | Mode::SquashMessage
+            )
+        {
             return self.mouse_in_editor_buttons(mouse);
         }
         if click && matches!(self.mode(), Mode::Confirm(..)) {
@@ -30,9 +35,6 @@ impl App {
         }
         if left_click && matches!(self.mode(), Mode::Search) {
             return self.mouse_in_search(mouse);
-        }
-        if left_click && matches!(self.mode(), Mode::SquashMessage) {
-            return self.mouse_in_squash_message(mouse);
         }
         if self.context_menu.is_some() {
             return self.mouse_on_context_menu(mouse);
@@ -90,18 +92,15 @@ impl App {
     /// Multiline editor popups: Save/Cancel buttons, outside = escape.
     fn mouse_in_editor_buttons(&mut self, mouse: MouseEvent) -> bool {
         let left_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
-        if left_click
-            && matches!(self.mode(), Mode::EditCommitMessage | Mode::EditCommitField)
-            && let Some((popup, save, cancel)) = self.multiline_editor_button_rects()
-        {
+        if left_click && let Some((popup, save, cancel)) = self.multiline_editor_button_rects() {
             if Self::rect_contains(save, mouse.column, mouse.row) {
                 self.editor_save_selected = true;
                 return self.activate_multiline_editor_action();
             }
             if Self::rect_contains(cancel, mouse.column, mouse.row) {
+                // Same as choosing Cancel by key: asks when the text changed.
                 self.editor_save_selected = false;
-                self.discard_multiline_editor();
-                return false;
+                return self.activate_multiline_editor_action();
             }
             if !Self::rect_contains(popup, mouse.column, mouse.row) {
                 self.escape_multiline_editor();
@@ -215,22 +214,6 @@ impl App {
                     });
                 }
                 self.apply_search_popup_hit(hit, clicked_char_pos, double_click, inner_width);
-            }
-            return false;
-        }
-        false
-    }
-
-    /// Squash message editor: click outside = Esc.
-    fn mouse_in_squash_message(&mut self, mouse: MouseEvent) -> bool {
-        let left_click = mouse.kind == MouseEventKind::Down(MouseButton::Left);
-        if left_click && matches!(self.mode(), Mode::SquashMessage) {
-            if self
-                .multiline_editor_popup_rect()
-                .map(|popup| Self::rect_contains(popup, mouse.column, mouse.row))
-                != Some(true)
-            {
-                return self.handle_squash_message(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
             }
             return false;
         }

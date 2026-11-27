@@ -71,7 +71,7 @@ layers, each knowing only the ones below it:
 | `app/layout.rs` | pane regions, popup rectangles, hit tests |
 | `app/input/` | `dispatch.rs` (keys), `mouse.rs`, `selection.rs` (mouse text selection), `clipboard.rs` |
 | `app/features/` | one file per feature: `commit_list`, `history_load`, `search`, `edit`, `squash`, `move_commit`, `staging`, `working_tree`, `repo_watch`, `stash`, `context_menu`, `help` |
-| `app/editor/` | the vim-like multi-line editor shared by every message popup |
+| `app/editor/` | the multi-line editor shared by every message popup: edit mode and a vim-like view mode |
 | `ui/renderer.rs` | picks what to draw for the current mode |
 | `ui/screens/` | `commit_list`, `details`, `diff`, `staging`, `stash`, `debugger` |
 | `ui/popups/` | `confirm`, `edit`, `search`, `squash_msg`, `context_menu`, `help` |
@@ -252,7 +252,12 @@ so a saved layout fits any terminal size. Every key is described in
 
 `main.rs` enters raw mode and the alternate screen, enables mouse
 capture and bracketed paste, and restores all of it through a guard on
-every exit path, including SIGINT, SIGTERM, SIGQUIT and SIGHUP. A
+every exit path, including SIGINT, SIGTERM, SIGQUIT and SIGHUP. When
+the terminal has the kitty keyboard protocol it is turned on too
+(`DISAMBIGUATE_ESCAPE_CODES`), so `Ctrl+Shift+Enter` (message editor)
+and `Shift+Enter` differ from `Enter`;
+not in a `--auto` session, where no terminal answers the support
+question and crossterm would wait two seconds for it. A
 watchdog ends the process if the event loop stops responding for five
 minutes, so a hung instance cannot hold a terminal forever. `--ascii`
 (or `GHH_ASCII=1`) draws the graph without Unicode box glyphs.

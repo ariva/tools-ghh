@@ -321,7 +321,9 @@ impl App {
             .as_ref()
             .map(|e| e.message.clone())
             .unwrap_or_default();
-        self.commit_msg_editor = Some(MultilineEditor::new(&msg));
+        let mut editor = MultilineEditor::new(&msg);
+        editor.insert_mode = true;
+        self.commit_msg_editor = Some(editor);
         self.editor_save_selected = true;
         self.nav.push(Mode::EditCommitField);
     }
